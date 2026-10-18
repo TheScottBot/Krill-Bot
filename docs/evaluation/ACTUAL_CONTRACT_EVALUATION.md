@@ -600,6 +600,16 @@ in `BOT_TIMEZONE`.
     The typography scan and Ruff each caught one defect in the first draft,
     both fixed before the suite passed with 182 tests under plain Pytest and
     development mode.
+44. The author asked for the contact route to be issues and comments on
+    `https://github.com/TheScottBot/Krill-Bot` rather than Discord, and
+    approved changing the KE3 test
+    `test_refused_paste_stores_nothing_and_logs_only_reason_and_server`,
+    whose expected reply named Discord. The edited assertion failed against
+    the old copy, then all 182 tests passed after the reply and `TERMS.md`
+    were changed and the terms page rebuilt. Because GitHub offers no general
+    repository comments, the author enabled Discussions on the repository, and
+    the wording became an issue or a discussion; the test was updated to match
+    first and failed against the earlier wording.
 
 ## KE2 progress report, 18 October 2026
 

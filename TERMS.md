@@ -29,4 +29,6 @@ What Krill Bot keeps and how to delete it is on the privacy page.
 
 ## Contact
 
-Message the author, TheScottBot, on Discord.
+Open an issue or start a discussion on the Krill Bot repository at
+https://github.com/TheScottBot/Krill-Bot, and the author will endeavour to
+reply.

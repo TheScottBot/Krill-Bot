@@ -44,3 +44,5 @@
   with a continuous integration check that the pages match their sources.
 - Recorded the author's KE8 checks against the development bot: logging,
   boards, the daily post, forgetting and removal.
+- Pointed the unrecognised-paste reply and the terms page to issues and
+  discussions on the GitHub repository instead of Discord.

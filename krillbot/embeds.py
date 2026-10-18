@@ -72,11 +72,13 @@ NO_DAILY_POST_TO_STOP_MESSAGE = "There is no daily post to stop."
 NO_DAILY_POST_MESSAGE = "There is no daily post here. /setup daily here posts one in that channel."
 TODAY_HIDDEN_MESSAGE = "Today's scores are hidden until you log your own result."
 NO_BOARD_RESULTS_MESSAGE = "No results have been logged in this server yet."
+REPOSITORY_URL = "https://github.com/TheScottBot/Krill-Bot"
 REJECTION_MESSAGES = {
     "too-long": "That's longer than any message with a Krillion result in it.",
     "not-a-result": (
-        "this doesn't look like a result, feel free to message me on Discord to update the bot "
-        "if its outdated."
+        "This doesn't look like a Krillion result. If Krill Bot seems out of date, open an "
+        f"issue or start a discussion at {REPOSITORY_URL} and the author will endeavour "
+        "to reply."
     ),
     "several-results": "That has more than one result in it; log them one at a time.",
 }
