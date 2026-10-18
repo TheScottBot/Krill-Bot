@@ -453,6 +453,34 @@ project specification.
     a repository check for the selected MIT licence. Result: the focused suite
     failed because `LICENCE` was absent before the standard licence text was
     added, then the complete suite passed.
+17. Recorded the author's approval to begin KE2 within the known evidence
+    boundary. Parser tests first failed at collection because the grammar API
+    did not exist, then 26 focused tests passed after the pure implementation.
+18. Planted a repository check for a distinct parser fuzz gate. Result: the
+    check failed because continuous integration ran only the general suite,
+    before the explicit parser-property step was added.
+
+## KE2 progress report, 18 October 2026
+
+Implemented so far: six author-supplied daily fixtures, the strict known
+four-line grammar, surrounding-conversation matching, Discord's 2,000-character
+input bound, single-result enforcement, the five-symbol inferred score table,
+score-mismatch metadata, and the published bearing bands.
+
+The focused suite covers every real fixture, malformed and unknown rows,
+multiple results, surrounding conversation, all bearing edges, accepted score
+mismatches, and three bounded Hypothesis properties. The pure-module import
+check remains in force, and continuous integration has a distinct parser fuzz
+step.
+
+The approved boundary deliberately does not guess result markers for Unlimited,
+Archive, or packs, any new round symbol, the reset time, or the daily-number to
+date mapping. Therefore `not-daily` and `from-the-future` cannot yet be emitted.
+These are recorded limitations, not silently invented behaviour.
+
+KE2 is implemented to the author-approved evidence boundary but is not complete
+against the full draft specification until genuine fixtures settle those two
+rejection cases and any additional round symbol.
 
 ## KE1 progress report, 18 October 2026
 
@@ -480,9 +508,9 @@ Current automated results on Windows with Python 3.14.7:
 
 - repository policy checks: passed
 - Ruff lint: passed with no findings
-- Ruff format check: 22 files formatted
+- Ruff format check: 28 files formatted
 - MyPy strict analysis: 10 source files passed with no issues
-- Pytest: 22 passed in 2.58 seconds
+- Pytest: 48 passed in 2.52 seconds
 - warnings: none reported
 - skipped tests: none
 

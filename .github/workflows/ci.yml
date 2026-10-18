@@ -26,4 +26,6 @@ jobs:
         run: mypy krillbot repository_checks.py
       - name: Pytest
         run: pytest
+      - name: Parser fuzz properties
+        run: pytest tests/test_result_grammar.py
 

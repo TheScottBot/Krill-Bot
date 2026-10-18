@@ -116,6 +116,7 @@ def test_continuous_integration_runs_every_ke1_gate() -> None:
         "ruff format --check .",
         "mypy krillbot repository_checks.py",
         "pytest",
+        "pytest tests/test_result_grammar.py",
     ):
         assert command_text in workflow
 
