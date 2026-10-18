@@ -552,6 +552,25 @@ in `BOT_TIMEZONE`.
 34. Planted the one-minute loop, its start on ready, and its delegation to the
     daily post. Result: three focused tests failed, then all 146 tests passed,
     including under `python -X dev -m pytest -W error`.
+35. Read discord.py 2.7.1's `View` and `BaseView` constructors, `Button`, and
+    `RawThreadDeleteEvent`, and ProcBot's removal handlers at `2c7ac2d`.
+    Result: a view can be built without a running event loop, in which case
+    its stop future is absent; the raw thread event carries the thread and
+    server identifiers even for uncached threads.
+36. Planted origin-recorded deletions: counting, forgetting here and
+    everywhere, forgetting a server, stopping a deleted channel's post, and an
+    origin for `/setup daily stop`. Partial failure was planted as an SQLite
+    trigger that aborts the server removal midway. Result: seven focused tests
+    failed, then all 153 tests passed; the interrupted removal left every row,
+    and the retry removed exactly the server's rows.
+37. Planted removal from a server, channel deletion and thread deletion in the
+    client. Result: three focused tests failed, then all 156 tests passed.
+38. Planted `/dive forget` with its caller-only confirmation. Result: nine
+    focused tests failed at the missing command. Two assertions on the view's
+    `is_finished` could not hold without an event loop, because that state is
+    the future the constructor skips; they were removed before ever passing,
+    leaving the observable removal of the buttons asserted. All 165 tests then
+    passed under plain Pytest and development mode.
 
 ## KE2 progress report, 18 October 2026
 
@@ -698,6 +717,21 @@ tests passed after `setup_group` was added to `APPLICATION_COMMANDS`.
 `/dive forget` and deletion on server removal and channel deletion wait for
 KD3. The daily post shown by `/setup show` is always `Not set up` until KE5
 writes one.
+
+Update, 18 October 2026: with KD3 settled as private and KE5 built, the rest of
+KE6 is implemented. `/dive forget scope:here` or `scope:everywhere` says how
+many results it will delete and waits for a Delete or Cancel button that only
+the caller passes the check for; anyone else is answered privately and
+nothing changes. Removal from a server deletes its results, daily post and
+settings in one transaction; deleting a channel or thread stops a daily post
+held there. Every deletion takes a required origin, `forget-command`,
+`guild-removed`, `channel-deleted` or `setup-daily-stop`, and logs it with the
+server and a count, never a user. Each is idempotent. The server removal was
+tested for an interruption midway: it left every row, and a retry finished it.
+
+The live confirmation flow, removal and deletion events remain author gates
+under KE8. A confirmation unanswered for two minutes stops accepting presses;
+its buttons stay visible, since the private reply is not edited on timeout.
 
 ## KE1 progress report, 18 October 2026
 

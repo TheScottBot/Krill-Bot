@@ -221,6 +221,112 @@ async def streak_command(
     )
 
 
+class ForgetConfirmationView(discord.ui.View):
+    """Delete and Cancel buttons that only the person who ran /dive forget can press."""
+
+    def __init__(self, *, caller_user_id: int, guild_id: int | None) -> None:
+        super().__init__(timeout=120)
+        self.caller_user_id = caller_user_id
+        # None means every server, the one deletion made by user alone (section 4.1).
+        self.guild_id = guild_id
+
+    async def interaction_check(self, interaction: discord.Interaction, /) -> bool:
+        # The prompt is private, but the check is what guarantees that nobody else
+        # can delete someone's results, so it does not rely on that.
+        if interaction.user.id == self.caller_user_id:
+            return True
+        await interaction.response.send_message(
+            embeds.FORGET_NOT_YOURS_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return False
+
+    @discord.ui.button(label=embeds.FORGET_CONFIRM_LABEL, style=discord.ButtonStyle.danger)
+    async def confirm_button(
+        self,
+        interaction: discord.Interaction,
+        pressed_button: discord.ui.Button[ForgetConfirmationView],
+    ) -> None:
+        """Delete the caller's results in the confirmed scope."""
+        connection = _database_connection(interaction)
+        if self.guild_id is None:
+            deleted_count = db.forget_user_results_everywhere(
+                connection,
+                user_id=self.caller_user_id,
+                origin=db.DeletionOrigin.FORGET_COMMAND,
+            )
+        else:
+            deleted_count = db.forget_user_results_here(
+                connection,
+                guild_id=self.guild_id,
+                user_id=self.caller_user_id,
+                origin=db.DeletionOrigin.FORGET_COMMAND,
+            )
+        self.stop()
+        await interaction.response.edit_message(
+            content=embeds.forgotten_message(deleted_count, everywhere=self.guild_id is None),
+            view=None,
+            allowed_mentions=NO_MENTIONS,
+        )
+
+    @discord.ui.button(label=embeds.FORGET_CANCEL_LABEL, style=discord.ButtonStyle.secondary)
+    async def cancel_button(
+        self,
+        interaction: discord.Interaction,
+        pressed_button: discord.ui.Button[ForgetConfirmationView],
+    ) -> None:
+        """Leave every result in place."""
+        self.stop()
+        await interaction.response.edit_message(
+            content=embeds.FORGET_CANCELLED_MESSAGE,
+            view=None,
+            allowed_mentions=NO_MENTIONS,
+        )
+
+
+@dive_group.command(name="forget", description=embeds.FORGET_COMMAND_DESCRIPTION)
+@app_commands.describe(scope=embeds.FORGET_SCOPE_DESCRIPTION)
+async def forget_command(
+    interaction: discord.Interaction,
+    scope: Literal["here", "everywhere"],
+) -> None:
+    """Show what will be deleted and wait for the caller to confirm."""
+    connection = _database_connection(interaction)
+    if scope == "everywhere":
+        result_count, server_count = db.count_user_results_everywhere(
+            connection, user_id=interaction.user.id
+        )
+        prompt_text = embeds.forget_everywhere_prompt(result_count, server_count)
+        nothing_text = embeds.NOTHING_TO_FORGET_MESSAGE
+        confirmed_guild_id = None
+    else:
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            await interaction.response.send_message(
+                embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+            )
+            return
+        result_count = db.count_user_results_here(
+            connection, guild_id=guild_id, user_id=interaction.user.id
+        )
+        prompt_text = embeds.forget_here_prompt(result_count)
+        nothing_text = embeds.NOTHING_TO_FORGET_HERE_MESSAGE
+        confirmed_guild_id = guild_id
+    if result_count == 0:
+        await interaction.response.send_message(
+            nothing_text, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    await interaction.response.send_message(
+        prompt_text,
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+        view=ForgetConfirmationView(
+            caller_user_id=interaction.user.id,
+            guild_id=confirmed_guild_id,
+        ),
+    )
+
+
 # default_permissions only sets who sees /setup at first, and a server may widen it,
 # so every subcommand also checks Manage Server when it is used.
 setup_group = app_commands.Group(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -11,6 +12,7 @@ from discord import app_commands
 
 from krillbot import bot, config, daily, db
 from krillbot.bot import KrillBot
+from krillbot.result_grammar import ParsedResult
 from tests.fakes import FakeInteraction, complete_immediate_coroutine
 
 
@@ -115,3 +117,84 @@ def test_daily_loop_sends_due_posts_from_the_bots_database(monkeypatch) -> None:
     assert awaited_client is client
     assert awaited_connection is connection
     assert awaited_now.tzinfo is not None
+
+
+REMOVAL_LOGGED_AT = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+
+
+def seed_removal_rows(connection) -> None:
+    for guild_id in (10, 11):
+        db.store_daily_result(
+            connection,
+            guild_id,
+            20,
+            ParsedResult(95, 435, "🐟🏮🏮🦑🐟🏮🦑", 435, True, True),
+            REMOVAL_LOGGED_AT,
+        )
+        db.set_daily_post(
+            connection,
+            guild_id=guild_id,
+            channel_id=300 + guild_id,
+            post_clock=None,
+            reset_clock=None,
+            next_run=REMOVAL_LOGGED_AT,
+        )
+
+
+def test_removal_from_a_server_forgets_only_that_server(caplog) -> None:
+    connection = db.initialise(":memory:")
+    client = KrillBot(connection)
+    try:
+        seed_removal_rows(connection)
+        with caplog.at_level(logging.INFO, logger="krillbot"):
+            complete_immediate_coroutine(client.on_guild_remove(SimpleNamespace(id=10)))
+        remaining_guilds = [
+            row[0] for row in connection.execute("SELECT guild_id FROM daily_results")
+        ]
+        removed_post = db.daily_post_setting(connection, guild_id=10)
+        kept_post = db.daily_post_setting(connection, guild_id=11)
+    finally:
+        connection.close()
+
+    assert remaining_guilds == [11]
+    assert removed_post is None
+    assert kept_post is not None
+    assert caplog.messages == [
+        "[10] Forgot the server: 1 result, 1 daily post, 0 settings (guild-removed)"
+    ]
+
+
+def test_a_deleted_channel_stops_its_servers_daily_post() -> None:
+    connection = db.initialise(":memory:")
+    client = KrillBot(connection)
+    try:
+        seed_removal_rows(connection)
+        complete_immediate_coroutine(
+            client.on_guild_channel_delete(SimpleNamespace(id=310, guild=SimpleNamespace(id=10)))
+        )
+        stopped_post = db.daily_post_setting(connection, guild_id=10)
+        kept_post = db.daily_post_setting(connection, guild_id=11)
+        result_count = connection.execute("SELECT COUNT(*) FROM daily_results").fetchone()[0]
+    finally:
+        connection.close()
+
+    assert stopped_post is None
+    assert kept_post is not None
+    assert result_count == 2
+
+
+def test_a_deleted_thread_stops_its_servers_daily_post() -> None:
+    connection = db.initialise(":memory:")
+    client = KrillBot(connection)
+    try:
+        seed_removal_rows(connection)
+        complete_immediate_coroutine(
+            client.on_raw_thread_delete(SimpleNamespace(thread_id=311, guild_id=11))
+        )
+        stopped_post = db.daily_post_setting(connection, guild_id=11)
+        kept_post = db.daily_post_setting(connection, guild_id=10)
+    finally:
+        connection.close()
+
+    assert stopped_post is None
+    assert kept_post is not None

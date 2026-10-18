@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
 from krillbot.boards import BoardEntry
 from krillbot.result_grammar import ParsedResult
+
+LOGGER = logging.getLogger("krillbot")
 
 SCHEMA_VERSION = 2
 
@@ -323,7 +327,124 @@ def stop_daily_post(connection: sqlite3.Connection, *, guild_id: int) -> bool:
     """Stop one server's daily post, reporting whether there was one to stop."""
     with connection:
         cursor = connection.execute("DELETE FROM daily_posts WHERE guild_id = ?", (guild_id,))
+    LOGGER.info(
+        "[%s] Stopped %s (%s)",
+        guild_id,
+        _counted(cursor.rowcount, "daily post"),
+        DeletionOrigin.SETUP_DAILY_STOP,
+    )
     return cursor.rowcount > 0
+
+
+class DeletionOrigin(StrEnum):
+    """Which surface asked for a deletion, recorded with every one (datum 0.14)."""
+
+    FORGET_COMMAND = "forget-command"
+    GUILD_REMOVED = "guild-removed"
+    CHANNEL_DELETED = "channel-deleted"
+    SETUP_DAILY_STOP = "setup-daily-stop"
+
+
+def _counted(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def count_user_results_here(connection: sqlite3.Connection, *, guild_id: int, user_id: int) -> int:
+    """Count what /dive forget here would delete."""
+    row = connection.execute(
+        "SELECT COUNT(*) FROM daily_results WHERE guild_id = ? AND user_id = ?",
+        (guild_id, user_id),
+    ).fetchone()
+    return int(row[0])
+
+
+def count_user_results_everywhere(
+    connection: sqlite3.Connection, *, user_id: int
+) -> tuple[int, int]:
+    """Count the results and servers /dive forget everywhere would delete from."""
+    # The one read by user alone, as specification section 4.1 allows for
+    # forgetting everywhere, so the caller sees what will go before confirming.
+    row = connection.execute(
+        "SELECT COUNT(*), COUNT(DISTINCT guild_id) FROM daily_results WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    return int(row[0]), int(row[1])
+
+
+def forget_user_results_here(
+    connection: sqlite3.Connection,
+    *,
+    guild_id: int,
+    user_id: int,
+    origin: DeletionOrigin,
+) -> int:
+    """Delete one user's results in one server; repeating it deletes nothing more."""
+    with connection:
+        cursor = connection.execute(
+            "DELETE FROM daily_results WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        )
+    LOGGER.info("[%s] Forgot %s (%s)", guild_id, _counted(cursor.rowcount, "result"), origin)
+    return cursor.rowcount
+
+
+def forget_user_results_everywhere(
+    connection: sqlite3.Connection,
+    *,
+    user_id: int,
+    origin: DeletionOrigin,
+) -> int:
+    """Delete one user's results in every server; repeating it deletes nothing more."""
+    with connection:
+        cursor = connection.execute("DELETE FROM daily_results WHERE user_id = ?", (user_id,))
+    LOGGER.info("Forgot %s in every server (%s)", _counted(cursor.rowcount, "result"), origin)
+    return cursor.rowcount
+
+
+def forget_guild(connection: sqlite3.Connection, *, guild_id: int, origin: DeletionOrigin) -> None:
+    """Delete everything one server owns, all at once or not at all."""
+    # One transaction, so an interruption leaves the server's rows as they were
+    # and the next removal event or a retry finishes the job.
+    with connection:
+        results_cursor = connection.execute(
+            "DELETE FROM daily_results WHERE guild_id = ?", (guild_id,)
+        )
+        posts_cursor = connection.execute("DELETE FROM daily_posts WHERE guild_id = ?", (guild_id,))
+        settings_cursor = connection.execute(
+            "DELETE FROM guild_settings WHERE guild_id = ?", (guild_id,)
+        )
+    LOGGER.info(
+        "[%s] Forgot the server: %s, %s, %s (%s)",
+        guild_id,
+        _counted(results_cursor.rowcount, "result"),
+        _counted(posts_cursor.rowcount, "daily post"),
+        _counted(settings_cursor.rowcount, "setting"),
+        origin,
+    )
+
+
+def stop_daily_posts_in_channel(
+    connection: sqlite3.Connection,
+    *,
+    guild_id: int,
+    channel_id: int,
+    origin: DeletionOrigin,
+) -> int:
+    """Stop the daily post in one server's deleted channel or thread."""
+    with connection:
+        cursor = connection.execute(
+            "DELETE FROM daily_posts WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+        )
+    if cursor.rowcount:
+        LOGGER.info(
+            "[%s] Stopped %s in channel %s (%s)",
+            guild_id,
+            _counted(cursor.rowcount, "daily post"),
+            channel_id,
+            origin,
+        )
+    return cursor.rowcount
 
 
 def daily_posts_due(connection: sqlite3.Connection, *, now: datetime) -> list[DailyPostSchedule]:

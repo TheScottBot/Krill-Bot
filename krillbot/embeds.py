@@ -37,6 +37,14 @@ TODAY_COMMAND_DESCRIPTION = "Show the latest daily board for this server"
 BOARD_COMMAND_DESCRIPTION = "Show a rolling server board"
 BOARD_PERIOD_DESCRIPTION = "Choose week, month, or all"
 STREAK_COMMAND_DESCRIPTION = "Show current and longest streaks"
+FORGET_COMMAND_DESCRIPTION = "Delete your results, after confirming"
+FORGET_SCOPE_DESCRIPTION = "here for this server, or everywhere for every server"
+FORGET_CONFIRM_LABEL = "Delete"
+FORGET_CANCEL_LABEL = "Cancel"
+FORGET_CANCELLED_MESSAGE = "Nothing was deleted."
+FORGET_NOT_YOURS_MESSAGE = "Only the person who ran /dive forget can use these buttons."
+NOTHING_TO_FORGET_HERE_MESSAGE = "You have no results to forget in this server."
+NOTHING_TO_FORGET_MESSAGE = "You have no results to forget."
 PERIOD_BOARD_TITLES = {
     BoardPeriod.WEEK: "Week board",
     BoardPeriod.MONTH: "Month board",
@@ -259,6 +267,32 @@ def settings_embed(*, hide_until_logged: bool, daily_post_summary: str | None) -
         inline=False,
     )
     return settings
+
+
+def _counted_results(result_count: int) -> str:
+    return "1 result" if result_count == 1 else f"{result_count} results"
+
+
+def forget_here_prompt(result_count: int) -> str:
+    """Say what /dive forget here will delete before the caller confirms."""
+    return (
+        f"This will delete your {_counted_results(result_count)} in this server. "
+        "It cannot be undone."
+    )
+
+
+def forget_everywhere_prompt(result_count: int, server_count: int) -> str:
+    """Say what /dive forget everywhere will delete before the caller confirms."""
+    servers = "1 server" if server_count == 1 else f"{server_count} servers"
+    return (
+        f"This will delete your {_counted_results(result_count)} in {servers}. It cannot be undone."
+    )
+
+
+def forgotten_message(result_count: int, *, everywhere: bool) -> str:
+    """Confirm what /dive forget deleted."""
+    where = "every server" if everywhere else "this server"
+    return f"Deleted {_counted_results(result_count)} from {where}."
 
 
 def streak_message(streak: Streak, *, own_streak: bool) -> str:

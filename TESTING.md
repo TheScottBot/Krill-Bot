@@ -54,6 +54,11 @@ synchronous Discord doubles whose awaited methods never suspend, and complete
 those immediate coroutines directly. Real event-loop behaviour remains an
 author gate and will be exercised only with the development Discord bot.
 
+For the same reason, the `/dive forget` button tests call each button's
+callback and the view's interaction check directly. A view built without an
+event loop has no stop future, so whether it reports itself finished is not
+asserted; the tests assert that the buttons are removed from the message.
+
 ## Author gates
 
 No author gate has been cleared. The coding agent does not start Krill Bot with

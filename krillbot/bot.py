@@ -82,6 +82,42 @@ class KrillBot(discord.Client):
         if not self.daily_loop.is_running():
             self.daily_loop.start()
 
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
+        """Forget everything a server owns once the bot is removed from it."""
+        if self.database_connection is None:
+            return
+        db.forget_guild(
+            self.database_connection,
+            guild_id=guild.id,
+            origin=db.DeletionOrigin.GUILD_REMOVED,
+        )
+
+    async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel) -> None:
+        """Stop a daily post whose channel no longer exists."""
+        if self.database_connection is None:
+            return
+        db.stop_daily_posts_in_channel(
+            self.database_connection,
+            guild_id=channel.guild.id,
+            channel_id=channel.id,
+            origin=db.DeletionOrigin.CHANNEL_DELETED,
+        )
+
+    async def on_raw_thread_delete(self, payload: discord.RawThreadDeleteEvent) -> None:
+        """Stop a daily post whose thread no longer exists.
+
+        The raw event fires even for threads missing from the cache, which an
+        idle thread holding only a daily post usually is.
+        """
+        if self.database_connection is None:
+            return
+        db.stop_daily_posts_in_channel(
+            self.database_connection,
+            guild_id=payload.guild_id,
+            channel_id=payload.thread_id,
+            origin=db.DeletionOrigin.CHANNEL_DELETED,
+        )
+
     async def setup_hook(self) -> None:
         """Register commands immediately in development servers or globally."""
         if not config.GUILD_IDS:

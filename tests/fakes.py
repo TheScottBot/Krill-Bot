@@ -28,6 +28,16 @@ class SentResponse:
     embed: discord.Embed | None
     ephemeral: bool
     allowed_mentions: discord.AllowedMentions | None
+    view: discord.ui.View | None = None
+
+
+@dataclass(frozen=True)
+class EditedMessage:
+    """One edit a button press made to the message holding it."""
+
+    content: str | None
+    view: discord.ui.View | None
+    allowed_mentions: discord.AllowedMentions | None
 
 
 class FakeInteractionResponse:
@@ -35,10 +45,11 @@ class FakeInteractionResponse:
 
     def __init__(self) -> None:
         self.sent_responses: list[SentResponse] = []
+        self.edited_messages: list[EditedMessage] = []
 
     def is_done(self) -> bool:
         """Return whether an initial response has been sent."""
-        return bool(self.sent_responses)
+        return bool(self.sent_responses or self.edited_messages)
 
     async def send_message(
         self,
@@ -47,8 +58,18 @@ class FakeInteractionResponse:
         embed: discord.Embed | None = None,
         ephemeral: bool = False,
         allowed_mentions: discord.AllowedMentions | None = None,
+        view: discord.ui.View | None = None,
     ) -> None:
-        self.sent_responses.append(SentResponse(content, embed, ephemeral, allowed_mentions))
+        self.sent_responses.append(SentResponse(content, embed, ephemeral, allowed_mentions, view))
+
+    async def edit_message(
+        self,
+        *,
+        content: str | None = None,
+        view: discord.ui.View | None = None,
+        allowed_mentions: discord.AllowedMentions | None = None,
+    ) -> None:
+        self.edited_messages.append(EditedMessage(content, view, allowed_mentions))
 
 
 class FakeInteractionFollowup:

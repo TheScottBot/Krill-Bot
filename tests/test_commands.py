@@ -593,3 +593,201 @@ def test_setup_show_reports_a_daily_post_that_follows_the_default_time(
             "<#300> at 17:00 (the default), with the dive resetting at 04:00 (the default)",
         ),
     ]
+
+
+def seed_forgettable_results(connection: Any) -> None:
+    logged_at = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+    for guild_id, user_id, daily_number in ((10, 20, 95), (10, 20, 94), (11, 20, 95), (10, 21, 95)):
+        db.store_daily_result(
+            connection,
+            guild_id,
+            user_id,
+            ParsedResult(daily_number, 100, "🫧🫧🫧🫧🫧🫧🫧", 70, True, False),
+            logged_at,
+        )
+
+
+def result_owners(connection: Any) -> list[tuple[int, int]]:
+    rows: list[tuple[int, int]] = connection.execute(
+        "SELECT guild_id, user_id FROM daily_results ORDER BY guild_id, user_id, daily_number"
+    ).fetchall()
+    return rows
+
+
+def ask_to_forget(connection: Any, scope: str, *, guild_id: int | None = 10) -> FakeInteraction:
+    interaction = FakeInteraction(
+        guild_id=guild_id,
+        user_id=20,
+        client=SimpleNamespace(database_connection=connection),
+    )
+    complete_immediate_coroutine(commands.forget_command.callback(interaction, scope))
+    return interaction
+
+
+def press(button: Any, interaction: FakeInteraction) -> None:
+    complete_immediate_coroutine(button.callback(interaction))
+
+
+def test_forget_here_shows_what_it_will_delete_and_waits_for_confirmation() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        seed_forgettable_results(connection)
+        interaction = ask_to_forget(connection, "here")
+        owners = result_owners(connection)
+    finally:
+        connection.close()
+
+    response = interaction.last_response
+    assert response.content == (
+        "This will delete your 2 results in this server. It cannot be undone."
+    )
+    assert response.ephemeral is True
+    assert response.allowed_mentions is not None
+    assert isinstance(response.view, commands.ForgetConfirmationView)
+    assert [child.label for child in response.view.children] == ["Delete", "Cancel"]
+    assert owners == [(10, 20), (10, 20), (10, 21), (11, 20)]
+
+
+def test_confirming_forget_here_deletes_only_the_callers_rows_in_this_server() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        seed_forgettable_results(connection)
+        view = ask_to_forget(connection, "here").last_response.view
+        assert isinstance(view, commands.ForgetConfirmationView)
+        pressing_interaction = FakeInteraction(
+            guild_id=10, user_id=20, client=SimpleNamespace(database_connection=connection)
+        )
+        press(view.confirm_button, pressing_interaction)
+        owners = result_owners(connection)
+    finally:
+        connection.close()
+
+    assert owners == [(10, 21), (11, 20)]
+    assert pressing_interaction.response.edited_messages[-1].content == (
+        "Deleted 2 results from this server."
+    )
+    assert pressing_interaction.response.edited_messages[-1].view is None
+
+
+def test_confirming_forget_everywhere_deletes_the_callers_rows_in_every_server() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        seed_forgettable_results(connection)
+        asking_interaction = ask_to_forget(connection, "everywhere")
+        view = asking_interaction.last_response.view
+        assert isinstance(view, commands.ForgetConfirmationView)
+        pressing_interaction = FakeInteraction(
+            guild_id=10, user_id=20, client=SimpleNamespace(database_connection=connection)
+        )
+        press(view.confirm_button, pressing_interaction)
+        owners = result_owners(connection)
+    finally:
+        connection.close()
+
+    assert asking_interaction.last_response.content == (
+        "This will delete your 3 results in 2 servers. It cannot be undone."
+    )
+    assert owners == [(10, 21)]
+    assert pressing_interaction.response.edited_messages[-1].content == (
+        "Deleted 3 results from every server."
+    )
+
+
+def test_forget_everywhere_works_outside_a_server() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        seed_forgettable_results(connection)
+        interaction = ask_to_forget(connection, "everywhere", guild_id=None)
+    finally:
+        connection.close()
+
+    assert isinstance(interaction.last_response.view, commands.ForgetConfirmationView)
+
+
+def test_only_the_caller_can_press_the_forget_buttons() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        seed_forgettable_results(connection)
+        view = ask_to_forget(connection, "here").last_response.view
+        assert isinstance(view, commands.ForgetConfirmationView)
+        other_interaction = FakeInteraction(guild_id=10, user_id=21)
+        other_allowed: list[bool] = []
+
+        async def check_other_user() -> None:
+            other_allowed.append(await view.interaction_check(other_interaction))
+
+        complete_immediate_coroutine(check_other_user())
+        owners = result_owners(connection)
+    finally:
+        connection.close()
+
+    assert other_allowed == [False]
+    assert other_interaction.last_response.content == (
+        "Only the person who ran /dive forget can use these buttons."
+    )
+    assert other_interaction.last_response.ephemeral is True
+    assert owners == [(10, 20), (10, 20), (10, 21), (11, 20)]
+
+
+def test_the_caller_passes_the_forget_button_check() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        seed_forgettable_results(connection)
+        view = ask_to_forget(connection, "here").last_response.view
+        assert isinstance(view, commands.ForgetConfirmationView)
+        caller_allowed: list[bool] = []
+
+        async def check_caller() -> None:
+            caller_allowed.append(
+                await view.interaction_check(FakeInteraction(guild_id=10, user_id=20))
+            )
+
+        complete_immediate_coroutine(check_caller())
+    finally:
+        connection.close()
+
+    assert caller_allowed == [True]
+
+
+def test_cancelling_forget_deletes_nothing() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        seed_forgettable_results(connection)
+        view = ask_to_forget(connection, "everywhere").last_response.view
+        assert isinstance(view, commands.ForgetConfirmationView)
+        pressing_interaction = FakeInteraction(guild_id=10, user_id=20)
+        press(view.cancel_button, pressing_interaction)
+        owners = result_owners(connection)
+    finally:
+        connection.close()
+
+    assert owners == [(10, 20), (10, 20), (10, 21), (11, 20)]
+    assert pressing_interaction.response.edited_messages[-1].content == "Nothing was deleted."
+    assert pressing_interaction.response.edited_messages[-1].view is None
+
+
+def test_forget_with_nothing_to_delete_offers_no_buttons() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        here_interaction = ask_to_forget(connection, "here")
+        everywhere_interaction = ask_to_forget(connection, "everywhere")
+    finally:
+        connection.close()
+
+    assert here_interaction.last_response.content == (
+        "You have no results to forget in this server."
+    )
+    assert here_interaction.last_response.view is None
+    assert everywhere_interaction.last_response.content == "You have no results to forget."
+    assert everywhere_interaction.last_response.view is None
+
+
+def test_forget_here_outside_a_server_is_refused() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        interaction = ask_to_forget(connection, "here", guild_id=None)
+    finally:
+        connection.close()
+
+    assert interaction.last_response.content == "This command can only be used in a server."
+    assert interaction.last_response.view is None

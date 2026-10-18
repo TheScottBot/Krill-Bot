@@ -32,3 +32,7 @@
   fallbacks of 17:00 and 04:00, `/setup daily here`, `stop` and `show`,
   yesterday's board, a six-hour grace period, and a one-minute loop that
   always moves each post on to its next day.
+- Added `/dive forget` for this server or every server, behind a Delete
+  button only the caller can press; deletion of a server's rows when the bot
+  is removed; and stopping a daily post whose channel or thread is deleted,
+  each idempotent and logged with its origin.
