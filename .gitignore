@@ -1,5 +1,6 @@
 .env
 .env.dev
+.idea/
 .mypy_cache/
 .pytest_cache/
 .pytest-work-*/
