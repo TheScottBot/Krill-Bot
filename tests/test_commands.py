@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import discord
 
 from krillbot import commands, db
+from krillbot.result_grammar import ParsedResult
 from tests.fakes import FakeInteraction, FakeMessage, complete_immediate_coroutine
 
 DAILY_RESULT_TEXT = "Krillion #95 🦐\n435\n\n🐟🏮🏮🦑🐟🏮🦑"
@@ -169,3 +171,99 @@ def test_dive_me_lists_only_the_callers_results_from_this_server() -> None:
     assert "#95: 435" in viewing_interaction.last_response.content
     assert "#96" not in viewing_interaction.last_response.content
     assert viewing_interaction.last_response.ephemeral is True
+
+
+def test_today_hides_scores_until_the_viewer_logs_current_result() -> None:
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    author_interaction = FakeInteraction(guild_id=10, user_id=20, client=client)
+    try:
+        complete_immediate_coroutine(
+            commands.log_result_command.callback(author_interaction, DAILY_RESULT_TEXT)
+        )
+        viewing_interaction = FakeInteraction(guild_id=10, user_id=21, client=client)
+        complete_immediate_coroutine(commands.today_command.callback(viewing_interaction))
+    finally:
+        connection.close()
+
+    assert viewing_interaction.last_response.content == (
+        "Today's scores are hidden until you log your own result."
+    )
+    assert viewing_interaction.last_response.ephemeral is True
+
+
+def test_today_shows_current_board_after_the_viewer_logs() -> None:
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    interaction = FakeInteraction(guild_id=10, user_id=20, client=client)
+    try:
+        complete_immediate_coroutine(
+            commands.log_result_command.callback(interaction, DAILY_RESULT_TEXT)
+        )
+        viewing_interaction = FakeInteraction(guild_id=10, user_id=20, client=client)
+        complete_immediate_coroutine(commands.today_command.callback(viewing_interaction))
+    finally:
+        connection.close()
+
+    response_embed = viewing_interaction.last_response.embed
+    assert response_embed is not None
+    assert response_embed.title == "Daily #95"
+    assert "435" in response_embed.description
+    assert viewing_interaction.last_response.ephemeral is True
+
+
+def test_board_command_pages_long_standings_and_disables_mentions() -> None:
+    connection = db.initialise(":memory:")
+    logged_at = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+    try:
+        for user_id in range(1, 23):
+            db.store_daily_result(
+                connection,
+                10,
+                user_id,
+                ParsedResult(95, user_id, "🆕", 0, False, False),
+                logged_at,
+            )
+        interaction = FakeInteraction(
+            guild_id=10,
+            user_id=1,
+            client=SimpleNamespace(database_connection=connection),
+        )
+        complete_immediate_coroutine(commands.board_command.callback(interaction, "week"))
+    finally:
+        connection.close()
+
+    assert interaction.last_response.embed is not None
+    assert interaction.last_response.ephemeral is True
+    assert len(interaction.followup.sent_responses) == 1
+    assert interaction.followup.sent_responses[0].ephemeral is True
+    assert interaction.followup.sent_responses[0].allowed_mentions is not None
+    assert (
+        interaction.followup.sent_responses[0].allowed_mentions.to_dict()
+        == discord.AllowedMentions.none().to_dict()
+    )
+
+
+def test_streak_command_reports_current_and_longest_for_caller() -> None:
+    connection = db.initialise(":memory:")
+    logged_at = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+    try:
+        for daily_number in (91, 92, 94, 95):
+            db.store_daily_result(
+                connection,
+                10,
+                20,
+                ParsedResult(daily_number, 100, "🆕", 0, False, False),
+                logged_at,
+            )
+        interaction = FakeInteraction(
+            guild_id=10,
+            user_id=20,
+            client=SimpleNamespace(database_connection=connection),
+        )
+        complete_immediate_coroutine(commands.streak_command.callback(interaction, None))
+    finally:
+        connection.close()
+
+    assert interaction.last_response.content == "Your current streak is 2; your longest is 2."
+    assert interaction.last_response.ephemeral is True
