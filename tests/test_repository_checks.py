@@ -129,3 +129,16 @@ def test_systemd_service_uses_the_stable_launcher_and_hardening() -> None:
     assert "PrivateTmp=true" in service
     assert "ProtectSystem=strict" in service
     assert "ReadWritePaths=/opt/krillbot" in service
+
+
+def test_continuous_integration_runs_the_suite_under_python_development_mode() -> None:
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "python -X dev -m pytest -W error" in workflow
+
+
+def test_testing_record_states_what_python_offers_for_memory_analysis() -> None:
+    testing_record = (PROJECT_ROOT / "TESTING.md").read_text(encoding="utf-8")
+
+    assert "## Memory and undefined behaviour analysis" in testing_record
+    assert "python -X dev -m pytest -W error" in testing_record

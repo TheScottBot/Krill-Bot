@@ -501,6 +501,16 @@ project specification.
     Manage Server requirement, per-server idempotent visibility storage, and
     the daily post read. Result: seven focused tests failed at missing
     interfaces, then all 88 tests passed.
+28. Read the Python 3.14 development mode documentation for datum 0.10's memory
+    and undefined behaviour analysis, which KE1 had not recorded in
+    `TESTING.md` as specification section 5.4 requires. Result: `-X dev`
+    installs the allocator debug hooks, faulthandler, resource and deprecation
+    warnings, and eager encoding checks; the page does not present it as a
+    sanitiser. Two repository tests for the record and the gate failed before
+    either existed. A planted test leaking an unclosed SQLite connection passed
+    under plain Pytest and failed under `python -X dev -m pytest -W error`,
+    after which the gate was added to continuous integration and all 90 tests
+    passed under both commands.
 
 ## KE2 progress report, 18 October 2026
 

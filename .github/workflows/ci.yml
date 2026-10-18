@@ -29,3 +29,5 @@ jobs:
       - name: Parser fuzz properties
         run: pytest tests/test_result_grammar.py
 
+      - name: Python development mode analysis
+        run: python -X dev -m pytest -W error

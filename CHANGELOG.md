@@ -25,3 +25,6 @@
   to composed text and command descriptions.
 - Added `/setup visibility` and `/setup show`, each requiring Manage Server and
   replying privately.
+- Recorded what Python offers for memory and undefined behaviour analysis, and
+  ran the whole suite under development mode with warnings as errors in
+  continuous integration.
