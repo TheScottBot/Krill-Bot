@@ -61,6 +61,33 @@ def find_prohibited_typography(root_path: Path) -> list[str]:
     return findings
 
 
+def _is_text_expression(syntax_node: ast.expr) -> bool:
+    return isinstance(syntax_node, ast.JoinedStr) or (
+        isinstance(syntax_node, ast.Constant) and isinstance(syntax_node.value, str)
+    )
+
+
+def _call_receives_user_facing_text(call_node: ast.Call) -> bool:
+    """Recognise text sent to Discord, handed to embeds.py, or shown as a description."""
+    # A description keyword is shown in Discord's command picker, so it is displayed copy.
+    if any(
+        keyword.arg == "description" and _is_text_expression(keyword.value)
+        for keyword in call_node.keywords
+    ):
+        return True
+    if not isinstance(call_node.func, ast.Attribute):
+        return False
+    sends_to_discord = call_node.func.attr in RESPONSE_METHOD_NAMES
+    # Text composed by the caller and passed into embeds.py escapes its ownership.
+    hands_text_to_embeds = (
+        isinstance(call_node.func.value, ast.Name) and call_node.func.value.id == "embeds"
+    )
+    if not (sends_to_discord or hands_text_to_embeds):
+        return False
+    supplied_values = list(call_node.args) + [keyword.value for keyword in call_node.keywords]
+    return any(_is_text_expression(supplied_value) for supplied_value in supplied_values)
+
+
 def find_user_facing_literals(package_path: Path) -> list[str]:
     """Report literal response text outside the module that owns displayed copy."""
     findings: list[str] = []
@@ -74,17 +101,7 @@ def find_user_facing_literals(package_path: Path) -> list[str]:
         for syntax_node in ast.walk(parsed):
             if not isinstance(syntax_node, ast.Call):
                 continue
-            if not isinstance(syntax_node.func, ast.Attribute):
-                continue
-            if syntax_node.func.attr not in RESPONSE_METHOD_NAMES:
-                continue
-            supplied_values = list(syntax_node.args) + [
-                keyword.value for keyword in syntax_node.keywords
-            ]
-            if any(
-                isinstance(supplied_value, ast.Constant) and isinstance(supplied_value.value, str)
-                for supplied_value in supplied_values
-            ):
+            if _call_receives_user_facing_text(syntax_node):
                 findings.append(
                     f"{source_file_path}:{syntax_node.lineno}: "
                     "user-facing string must be owned by embeds.py"

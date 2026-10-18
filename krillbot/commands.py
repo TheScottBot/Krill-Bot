@@ -160,7 +160,7 @@ async def today_command(interaction: discord.Interaction) -> None:
     standings = compile_board(entries, BoardPeriod.ALL, current_daily_number=current_daily_number)
     await _send_board_pages(
         interaction,
-        embeds.board_pages(f"Daily #{current_daily_number}", standings),
+        embeds.daily_board_pages(current_daily_number, standings),
     )
 
 
@@ -190,7 +190,7 @@ async def board_command(
     )
     await _send_board_pages(
         interaction,
-        embeds.board_pages(f"{selected_period.value.title()} board", standings),
+        embeds.period_board_pages(selected_period, standings),
     )
 
 
@@ -236,7 +236,7 @@ async def log_message_command(
     await _store_supplied_result(interaction, message.content)
 
 
-@app_commands.command(name="help", description="Show what Krill Bot does")
+@app_commands.command(name="help", description=embeds.HELP_COMMAND_DESCRIPTION)
 async def help_command(interaction: discord.Interaction) -> None:
     """Show the bot's purpose and unofficial status."""
     await interaction.response.send_message(embed=embeds.help_embed(), allowed_mentions=NO_MENTIONS)

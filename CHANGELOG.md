@@ -19,4 +19,7 @@
   calculations.
 - Added hidden daily boards, rolling server boards, streak commands, and private
   multi-message paging with mentions disabled.
-
+- Showed each score's bearing on `/dive today`, kept every board page and
+  result history inside Discord's limits with a truncation note, made board
+  averages exact for scores of any size, and widened the displayed-string check
+  to composed text and command descriptions.

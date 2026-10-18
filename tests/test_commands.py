@@ -210,6 +210,7 @@ def test_today_shows_current_board_after_the_viewer_logs() -> None:
     assert response_embed.title == "Daily #95"
     assert "435" in response_embed.description
     assert viewing_interaction.last_response.ephemeral is True
+    assert response_embed.description == "1. <@20>: 435 points, Deep cut"
 
 
 def test_board_command_pages_long_standings_and_disables_mentions() -> None:

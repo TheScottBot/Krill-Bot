@@ -77,3 +77,15 @@ def test_duplicate_daily_numbers_do_not_inflate_a_streak() -> None:
 
 def test_empty_history_has_zero_streaks() -> None:
     assert calculate_streak((), current_daily_number=100) == Streak(current=0, longest=0)
+
+
+def test_board_average_is_exact_for_scores_beyond_float_range() -> None:
+    enormous_score = int("9" * 400)
+    entries = (
+        BoardEntry(user_id=10, daily_number=100, score=enormous_score),
+        BoardEntry(user_id=10, daily_number=99, score=enormous_score + 2),
+    )
+
+    standings = compile_board(entries, BoardPeriod.ALL, current_daily_number=100)
+
+    assert standings[0].average == enormous_score + 1

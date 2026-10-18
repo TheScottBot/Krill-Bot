@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from fractions import Fraction
 
 
 class BoardPeriod(StrEnum):
@@ -30,7 +31,8 @@ class BoardStanding:
     user_id: int
     dives: int
     total: int
-    average: float
+    # Exact, because scores have no upper bound and float division overflows.
+    average: Fraction
     best: int
 
 
@@ -67,7 +69,7 @@ def compile_board(
             user_id=user_id,
             dives=len(scores),
             total=sum(scores),
-            average=sum(scores) / len(scores),
+            average=Fraction(sum(scores), len(scores)),
             best=max(scores),
         )
         for user_id, scores in scores_by_user.items()

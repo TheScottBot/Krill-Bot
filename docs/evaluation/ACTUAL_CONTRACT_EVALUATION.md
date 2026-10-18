@@ -480,6 +480,17 @@ project specification.
     rolling board commands, private paging, and streak replies. Result: six
     focused tests failed at missing interfaces before implementation, then all
     17 focused database and command tests passed.
+24. Read Discord's message documentation again for the embed description limit,
+    which the earlier record omitted. Result: a description holds 4,096
+    characters and a title 256, alongside the recorded 2,000-character content
+    and 6,000-character aggregate limits.
+25. Planted the third KE4 slice for daily bearings, embeds-owned board titles,
+    description and content limits with a truncation note, exact averages, and
+    a wider displayed-string check. Result: eleven focused tests failed for the
+    expected reasons, including an `OverflowError` from a float average of a
+    score beyond float range, then all 81 tests passed. The wider check, run
+    against the committed `commands.py`, reported the two composed board titles
+    and the inline `/help` description.
 
 ## KE2 progress report, 18 October 2026
 
@@ -542,6 +553,27 @@ recorded rather than presented as Krillion's actual reset date.
 
 KE4 is complete to the available reset evidence. The `/setup visibility`
 control that changes the default belongs to KE6.
+
+Update, 18 October 2026: a review of the second slice against the
+specification found four gaps, closed by a third slice. `/dive today` did not
+show each score's bearing, as section 2.1 requires; it now does, derived from
+the bearing table. Board titles were composed in `commands.py`, outside
+`embeds.py`, which the displayed-string check missed because it inspected only
+literals passed directly to a send method. Nothing enforced Discord's limits
+from section 5.3: a board row carrying an unbounded score could exceed the
+4,096-character description limit, and `/dive me` would exceed the
+2,000-character content limit after roughly fifty dives. Pages now break by
+twenty rows or by the description limit, whichever comes first; a single row
+too long for a page and an over-long history are truncated with a note, with
+the oldest results dropped first. Lengths are measured in UTF-16 code units,
+never fewer than Discord's count, because Discord does not say how it counts an
+emoji. Board averages are now exact fractions, because a score beyond float
+range raised `OverflowError` and broke every board in the server.
+
+The wider displayed-string check also caught the inline `/help` command
+description written in KE1. It was moved into `embeds.py` in the same slice,
+because the check could not pass on the tree otherwise. The all-time board
+title reads `All-time board` rather than the former `All board`.
 
 ## KE1 progress report, 18 October 2026
 

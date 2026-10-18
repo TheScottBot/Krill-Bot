@@ -4,9 +4,16 @@ from __future__ import annotations
 
 import discord
 
-from krillbot.boards import BoardStanding, Streak
+from krillbot.boards import BoardPeriod, BoardStanding, Streak
+from krillbot.result_grammar import bearing_for_score
+
+DISCORD_MESSAGE_CONTENT_LIMIT = 2_000
+DISCORD_EMBED_DESCRIPTION_LIMIT = 4_096
+BOARD_PAGE_SIZE = 20
+TRUNCATION_NOTE = "(truncated to fit Discord's limits)"
 
 HELP_TITLE = "Krill Bot"
+HELP_COMMAND_DESCRIPTION = "Show what Krill Bot does"
 HELP_DESCRIPTION = (
     "An unofficial Discord companion for Krillion. Log daily results, compare "
     "server boards, and keep track of streaks. Krill Bot never contacts "
@@ -26,6 +33,11 @@ TODAY_COMMAND_DESCRIPTION = "Show the latest daily board for this server"
 BOARD_COMMAND_DESCRIPTION = "Show a rolling server board"
 BOARD_PERIOD_DESCRIPTION = "Choose week, month, or all"
 STREAK_COMMAND_DESCRIPTION = "Show current and longest streaks"
+PERIOD_BOARD_TITLES = {
+    BoardPeriod.WEEK: "Week board",
+    BoardPeriod.MONTH: "Month board",
+    BoardPeriod.ALL: "All-time board",
+}
 TODAY_HIDDEN_MESSAGE = "Today's scores are hidden until you log your own result."
 NO_BOARD_RESULTS_MESSAGE = "No results have been logged in this server yet."
 REJECTION_MESSAGES = {
@@ -54,29 +66,92 @@ def rejection_message(reason: str) -> str:
     return REJECTION_MESSAGES[reason]
 
 
+def _discord_length(text: str) -> int:
+    """Measure in UTF-16 code units, which is never fewer than Discord's count.
+
+    Discord's documentation gives its limits in characters without saying how an
+    emoji is counted, so the larger measure keeps every reply under the limit.
+    """
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _truncated_line(line_text: str, limit: int) -> str:
+    """Shorten one line to the limit, ending it with the truncation note."""
+    if _discord_length(line_text) <= limit:
+        return line_text
+    suffix = " " + TRUNCATION_NOTE
+    shortened_text = line_text[: limit - len(suffix)]
+    while _discord_length(shortened_text + suffix) > limit:
+        shortened_text = shortened_text[:-1]
+    return shortened_text + suffix
+
+
 def user_results_message(results: list[tuple[int, int, str]]) -> str:
-    """Format one user's server-scoped result history."""
+    """Format one user's server-scoped history, newest first, inside the content limit."""
     if not results:
         return NO_RESULTS_MESSAGE
+    header = "Your Krillion results in this server:"
     lines = [
         f"#{daily_number}: {score} points {emoji_row}" for daily_number, score, emoji_row in results
     ]
-    return "Your Krillion results in this server:\n" + "\n".join(lines)
+    complete_text = "\n".join([header, *lines])
+    if _discord_length(complete_text) <= DISCORD_MESSAGE_CONTENT_LIMIT:
+        return complete_text
+
+    # Oldest results are dropped first, because the newest are the ones a player checks.
+    kept_lines: list[str] = []
+    kept_length = _discord_length(header) + 1 + _discord_length(TRUNCATION_NOTE)
+    for line_text in lines:
+        line_length = _discord_length(line_text) + 1
+        if kept_length + line_length > DISCORD_MESSAGE_CONTENT_LIMIT:
+            break
+        kept_lines.append(line_text)
+        kept_length += line_length
+    return "\n".join([header, *kept_lines, TRUNCATION_NOTE])
 
 
-def board_pages(title: str, standings: list[BoardStanding]) -> list[discord.Embed]:
-    """Format standings as bounded pages of twenty rows."""
-    page_size = 20
+def _board_pages(title: str, lines: list[str]) -> list[discord.Embed]:
+    """Page board lines by row count and by Discord's description limit."""
     pages: list[discord.Embed] = []
-    for page_start in range(0, len(standings), page_size):
-        page_standings = standings[page_start : page_start + page_size]
-        lines = [
-            f"{page_start + position}. <@{standing.user_id}>: {standing.total} total, "
-            f"{standing.dives} dives, {standing.average:.1f} average, {standing.best} best"
-            for position, standing in enumerate(page_standings, start=1)
-        ]
-        pages.append(discord.Embed(title=title, description="\n".join(lines)))
+    page_lines: list[str] = []
+    page_length = 0
+    for line_text in lines:
+        bounded_line = _truncated_line(line_text, DISCORD_EMBED_DESCRIPTION_LIMIT)
+        line_length = _discord_length(bounded_line)
+        separator_length = 1 if page_lines else 0
+        if page_lines and (
+            len(page_lines) == BOARD_PAGE_SIZE
+            or page_length + separator_length + line_length > DISCORD_EMBED_DESCRIPTION_LIMIT
+        ):
+            pages.append(discord.Embed(title=title, description="\n".join(page_lines)))
+            page_lines = []
+            page_length = 0
+            separator_length = 0
+        page_lines.append(bounded_line)
+        page_length += separator_length + line_length
+    if page_lines:
+        pages.append(discord.Embed(title=title, description="\n".join(page_lines)))
     return pages
+
+
+def daily_board_pages(daily_number: int, standings: list[BoardStanding]) -> list[discord.Embed]:
+    """Format one daily number's scores, each with its published bearing."""
+    lines = [
+        f"{position}. <@{standing.user_id}>: {standing.best} points, "
+        f"{bearing_for_score(standing.best).name}"
+        for position, standing in enumerate(standings, start=1)
+    ]
+    return _board_pages(f"Daily #{daily_number}", lines)
+
+
+def period_board_pages(period: BoardPeriod, standings: list[BoardStanding]) -> list[discord.Embed]:
+    """Format a rolling board with dives, total, average, and best per player."""
+    lines = [
+        f"{position}. <@{standing.user_id}>: {standing.total} total, "
+        f"{standing.dives} dives, {standing.average:.1f} average, {standing.best} best"
+        for position, standing in enumerate(standings, start=1)
+    ]
+    return _board_pages(PERIOD_BOARD_TITLES[period], lines)
 
 
 def streak_message(streak: Streak, *, own_streak: bool) -> str:

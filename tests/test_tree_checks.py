@@ -38,3 +38,33 @@ def test_user_facing_string_check_reports_inline_response_text(tmp_path: Path) -
     assert find_user_facing_literals(package_path) == [
         f"{source_file}:2: user-facing string must be owned by embeds.py"
     ]
+
+
+def test_user_facing_string_check_reports_text_built_for_embeds(tmp_path: Path) -> None:
+    package_path = tmp_path / "krillbot"
+    package_path.mkdir()
+    source_file = package_path / "commands.py"
+    source_file.write_text(
+        'def page(daily_number):\n    return embeds.board_pages(f"Daily #{daily_number}", [])\n',
+        encoding="utf-8",
+    )
+
+    assert find_user_facing_literals(package_path) == [
+        f"{source_file}:2: user-facing string must be owned by embeds.py"
+    ]
+
+
+def test_user_facing_string_check_reports_inline_command_descriptions(tmp_path: Path) -> None:
+    package_path = tmp_path / "krillbot"
+    package_path.mkdir()
+    source_file = package_path / "commands.py"
+    source_file.write_text(
+        '@app_commands.command(name="help", description="Inline description")\n'
+        "async def help_command(interaction):\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+
+    assert find_user_facing_literals(package_path) == [
+        f"{source_file}:1: user-facing string must be owned by embeds.py"
+    ]
