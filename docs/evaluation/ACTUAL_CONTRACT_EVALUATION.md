@@ -132,7 +132,7 @@ Update, 18 October 2026: the author stated that licences had been added and
 that they are MIT. The local pinned ProcBot and target checkouts did not yet
 contain those new files when checked, which is consistent with the reference
 checkout predating the author's change. The author explicitly selected MIT for
-this project, so KD7 is resolved. The project `LICENSE` file remains future KE1
+this project, so KD7 is resolved. The project `LICENCE` file remains future KE1
 work and must carry the author-selected holder and year.
 
 ### EF3: live Discord remains an author gate
@@ -451,7 +451,7 @@ project specification.
     was absent, then passed after the complete record was added.
 16. Recorded the author's licence-holder decision as `TheScottBot`, then planted
     a repository check for the selected MIT licence. Result: the focused suite
-    failed because `LICENSE` was absent before the standard licence text was
+    failed because `LICENCE` was absent before the standard licence text was
     added, then the complete suite passed.
 
 ## KE1 progress report, 18 October 2026

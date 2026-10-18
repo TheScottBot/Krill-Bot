@@ -86,7 +86,7 @@ def test_dependency_record_covers_every_declared_dependency_and_datum_field() ->
 
 
 def test_mit_licence_records_the_author_selected_holder() -> None:
-    licence_text = (PROJECT_ROOT / "LICENSE").read_text(encoding="utf-8")
+    licence_text = (PROJECT_ROOT / "LICENCE").read_text(encoding="utf-8")
 
     assert licence_text.startswith("MIT License\n")
     assert "Copyright (c) 2026 TheScottBot" in licence_text
