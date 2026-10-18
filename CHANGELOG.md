@@ -13,4 +13,6 @@
   conservative subtotal and full-row validation signal.
 - Added server-scoped result storage, `/dive log`, `/dive me`, and the
   author-only Log Krillion result message menu.
+- Replaced the proposed aggregate format-change warning with private guidance
+  on each unrecognised paste, as selected by the author.
 

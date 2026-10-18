@@ -95,7 +95,10 @@ def test_refused_paste_stores_nothing_and_logs_only_reason_and_server(caplog) ->
         connection.close()
 
     assert stored_count == 0
-    assert interaction.last_response.content == "I can't find a Krillion result in that."
+    assert interaction.last_response.content == (
+        "this doesn't look like a result, feel free to message me on Discord to update the bot "
+        "if its outdated."
+    )
     assert interaction.last_response.ephemeral is True
     assert caplog.messages == ["[10] Refused result: not-a-result"]
     assert supplied_text not in caplog.text

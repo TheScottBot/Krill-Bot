@@ -22,7 +22,10 @@ LOG_RESULT_PARAMETER_DESCRIPTION = "The text from Krillion's Copy result button"
 ME_COMMAND_DESCRIPTION = "Show your results from this server"
 REJECTION_MESSAGES = {
     "too-long": "That's longer than any message with a Krillion result in it.",
-    "not-a-result": "I can't find a Krillion result in that.",
+    "not-a-result": (
+        "this doesn't look like a result, feel free to message me on Discord to update the bot "
+        "if its outdated."
+    ),
     "several-results": "That has more than one result in it; log them one at a time.",
 }
 

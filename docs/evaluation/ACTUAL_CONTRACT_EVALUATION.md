@@ -467,6 +467,11 @@ project specification.
     replies, refusal privacy, and message authorship. Result: nine focused tests
     failed because the query and command interfaces did not exist, then the
     focused slice passed after their implementation.
+21. The author selected no KU9 aggregate refusal threshold or format-change
+    warning. A revised command test failed against the former generic rejection
+    copy before the author-supplied private guidance was centralised. The
+    authorised specification departure is recorded in
+    `IMPLEMENTATION_DEVIATIONS.md`.
 
 ## KE2 progress report, 18 October 2026
 
@@ -507,9 +512,10 @@ caller. Refused text is neither stored nor logged; the log records only the
 server and stable rejection reason. Accepted rows store only the six schema
 columns, and an unverified score records only a server-scoped diagnostic.
 
-KE3 is not complete against the full draft specification. Daily aggregate
-refusal counters and the format-change warning require the author-selected KU9
-threshold. The implemented command and storage slice does not guess it.
+KE3 is complete to the author's revised contract. Daily aggregate refusal
+counters and the format-change warning are intentionally omitted. Each
+unrecognised paste receives private guidance, while only its server and stable
+reason enter the diagnostic log.
 
 ## KE1 progress report, 18 October 2026
 
@@ -539,7 +545,7 @@ Current automated results on Windows with Python 3.14.7:
 - Ruff lint: passed with no findings
 - Ruff format check: 28 files formatted
 - MyPy strict analysis: 10 source files passed with no issues
-- Pytest: 57 passed in 2.75 seconds
+- Pytest: 57 passed in 3.81 seconds
 - warnings: none reported
 - skipped tests: none
 
