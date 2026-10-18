@@ -51,6 +51,23 @@ class FakeInteractionResponse:
         self.sent_responses.append(SentResponse(content, embed, ephemeral, allowed_mentions))
 
 
+class FakeInteractionFollowup:
+    """Capture additional private pages sent after the initial response."""
+
+    def __init__(self) -> None:
+        self.sent_responses: list[SentResponse] = []
+
+    async def send(
+        self,
+        content: str | None = None,
+        *,
+        embed: discord.Embed | None = None,
+        ephemeral: bool = False,
+        allowed_mentions: discord.AllowedMentions | None = None,
+    ) -> None:
+        self.sent_responses.append(SentResponse(content, embed, ephemeral, allowed_mentions))
+
+
 class FakeInteraction:
     """The interaction surface needed by KE1 command tests."""
 
@@ -62,6 +79,7 @@ class FakeInteraction:
         client: Any = None,
     ) -> None:
         self.response = FakeInteractionResponse()
+        self.followup = FakeInteractionFollowup()
         self.guild_id = guild_id
         self.user = type("FakeUser", (), {"id": user_id})()
         self.client = client
