@@ -476,6 +476,10 @@ project specification.
     dives, average, and best, and rolling 7-day and 30-day periods based on daily
     numbers. Pure KE4 tests failed at collection because the board model did not
     exist, then eight focused tests passed after implementation.
+23. Planted the second KE4 slice for server-scoped reads, hidden-today access,
+    rolling board commands, private paging, and streak replies. Result: six
+    focused tests failed at missing interfaces before implementation, then all
+    17 focused database and command tests passed.
 
 ## KE2 progress report, 18 October 2026
 
@@ -529,10 +533,15 @@ current and longest streak calculations. Board ties are resolved by best score,
 then dives, then Discord user ID so results remain deterministic. Duplicate
 daily numbers do not inflate streaks, and a gap breaks them.
 
-Discord commands, hidden-today behaviour, server-scoped database reads, and
-embed paging remain in the next KE4 slice. Until KU4 is settled, those views
-will use the highest daily number logged in the server as their rolling anchor,
-which is recorded rather than presented as Krillion's actual reset date.
+Implemented command surface: `/dive today`, `/dive board`, and `/dive streak`.
+Today is hidden by default until the viewer logs the latest server result.
+Database reads always include `guild_id`. Long boards use private twenty-row
+pages, and every page disables mentions. Until KU4 is settled, views use the
+highest daily number logged in the server as their rolling anchor, which is
+recorded rather than presented as Krillion's actual reset date.
+
+KE4 is complete to the available reset evidence. The `/setup visibility`
+control that changes the default belongs to KE6.
 
 ## KE1 progress report, 18 October 2026
 
@@ -562,7 +571,7 @@ Current automated results on Windows with Python 3.14.7:
 - Ruff lint: passed with no findings
 - Ruff format check: 28 files formatted
 - MyPy strict analysis: 10 source files passed with no issues
-- Pytest: 65 passed in 3.10 seconds
+- Pytest: 71 passed in 3.42 seconds
 - warnings: none reported
 - skipped tests: none
 

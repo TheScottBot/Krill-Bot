@@ -17,4 +17,6 @@
   on each unrecognised paste, as selected by the author.
 - Added pure rolling board aggregation and current and longest streak
   calculations.
+- Added hidden daily boards, rolling server boards, streak commands, and private
+  multi-message paging with mentions disabled.
 
