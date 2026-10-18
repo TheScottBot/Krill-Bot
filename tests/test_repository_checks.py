@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PURE_MODULE_PATHS = (
     PROJECT_ROOT / "krillbot" / "result_grammar.py",
     PROJECT_ROOT / "krillbot" / "boards.py",
+    PROJECT_ROOT / "krillbot" / "clock.py",
 )
 FORBIDDEN_PURE_IMPORTS = {"discord", "sqlite3"}
 
@@ -142,3 +143,10 @@ def test_testing_record_states_what_python_offers_for_memory_analysis() -> None:
 
     assert "## Memory and undefined behaviour analysis" in testing_record
     assert "python -X dev -m pytest -W error" in testing_record
+
+
+def test_environment_example_names_the_daily_time_fallbacks() -> None:
+    environment_example = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    assert "DAILY_POST_TIME=17:00" in environment_example
+    assert "DAILY_RESET_TIME=04:00" in environment_example

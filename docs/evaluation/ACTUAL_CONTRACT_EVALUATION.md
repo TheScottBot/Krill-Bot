@@ -402,6 +402,23 @@ KD2 and KD7 no longer block KE1. KU8 and KU11 still require evidence before KE1
 is settled. The remaining decisions block the later phases identified in the
 project specification.
 
+Update, 18 October 2026: the author settled the daily reset for KE5. Each
+server sets its reset time with its `/setup daily` command. A server that sets
+none uses a reset time from the bot's environment file, and when that is
+absent too, 04:00 each day. The author also accepted the current streak rule,
+under which a current streak counts only once the player has logged the
+server's newest daily number.
+
+Update, 18 October 2026: the author answered the remaining KE5 and KD3
+questions. KD3 is settled as private: Krill Bot runs only on servers the author
+adds it to and is not listed publicly. Retention was not stated separately, so
+no pruning is built; rows stay until `/dive forget` or removal deletes them,
+which is the behaviour already specified, and pruning would be a later
+decision. KU5 is settled: the daily post time is its own setting, chosen per
+server in `/setup daily`, falling back to a value in the bot's environment
+file and then to 17:00. The reset and post times, and both fallbacks, are read
+in `BOT_TIMEZONE`.
+
 ## Experiments performed
 
 1. Inspected the target repository with read-only filesystem and Git commands.
@@ -511,6 +528,30 @@ project specification.
     under plain Pytest and failed under `python -X dev -m pytest -W error`,
     after which the gate was added to continuous integration and all 90 tests
     passed under both commands.
+29. Read ProcBot's `daily.py`, its daily database functions, its `/setup daily`
+    commands and its loop at `2c7ac2d`, and discord.py 2.7.1's `tasks.loop`,
+    `Loop.__get__`, `Client.get_channel` and `HTTPException`. Result: ProcBot
+    uses a one-minute loop, a six-hour grace period, one post per server, and
+    always moves on to the next day in a `finally` block. `get_channel` returns
+    threads as well as channels.
+30. Planted the time grammar and environment fallbacks. Result: the new
+    `clock.py` tests failed at collection, the three configuration tests and
+    the pure-import case failed, then all passed. A test that `.env.example`
+    names both fallbacks failed against a planted copy without them.
+31. Planted schema version 2 and the daily post storage. Result: five focused
+    tests failed at missing interfaces, then all 124 tests passed. A version 1
+    database upgrades with its rows kept.
+32. Planted `daily.py`: due times, both fallbacks, yesterday's board from the
+    window between the previous two resets, server isolation, the no-results
+    message, the grace-period skip, a failed send, a missing channel, and one
+    server's failure leaving another's post intact. Result: the module failed
+    at collection, then all 135 tests passed.
+33. Planted `/setup daily here`, `stop` and `show`, and the daily post shown by
+    `/setup show`. Result: eight focused tests failed at missing interfaces,
+    then all 143 tests passed.
+34. Planted the one-minute loop, its start on ready, and its delegation to the
+    daily post. Result: three focused tests failed, then all 146 tests passed,
+    including under `python -X dev -m pytest -W error`.
 
 ## KE2 progress report, 18 October 2026
 
@@ -594,6 +635,37 @@ The wider displayed-string check also caught the inline `/help` command
 description written in KE1. It was moved into `embeds.py` in the same slice,
 because the check could not pass on the tree otherwise. The all-time board
 title reads `All-time board` rather than the former `All board`.
+
+## KE5 progress report, 18 October 2026
+
+Implemented so far: the pure `clock.py` time grammar shared by the
+environment file and `/setup daily`; the `DAILY_POST_TIME` and
+`DAILY_RESET_TIME` fallbacks, defaulting to 17:00 and 04:00 in
+`BOT_TIMEZONE`; schema version 2, which lets a server leave either time unset
+and stores its reset time; `daily.py`; `/setup daily here [time] [reset]`,
+`stop` and `show`; and the one-minute loop.
+
+The post says today's dive is open, links to krillion.io, and carries
+yesterday's board. Yesterday's dive is the newest daily number logged in this
+server between the previous two resets, so it follows each server's own reset
+without the daily-number to date mapping that KU4 still lacks. A post is
+skipped and logged after a six-hour grace period, a failed send or missing
+channel is logged with the server, and every due post moves on to its next
+day. Every message is sent with mentions disabled. An unexpected error for one
+server is logged and the loop carries on, because an exception escaping a
+`tasks.loop` iteration would stop it for every server.
+
+The loop starts on ready rather than in `setup_hook` as ProcBot does. Starting
+a `tasks.loop` needs a running event loop, and the KE1 `setup_hook` test
+completes that hook without one; on ready also keeps the loop to a client that
+is connected. Ready fires again after a reconnect, so the start is guarded.
+
+Not yet attached under `/setup`. Nesting the `daily` group there changes the
+exact subcommand list asserted by the KE6 test
+`test_setup_is_server_only_and_defaults_to_manage_server`. Datum 0.4 forbids
+editing that assertion without raising it, so the change waits for the author.
+The daily post's real sending, timing and thread behaviour are author gates
+under KE8. The `from-the-future` refusal still needs KU4's date mapping.
 
 ## KE6 progress report, 18 October 2026
 

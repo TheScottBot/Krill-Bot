@@ -78,7 +78,9 @@ class FakeInteraction:
         user_id: int = 100,
         client: Any = None,
         permissions: discord.Permissions | None = None,
+        channel_id: int | None = None,
     ) -> None:
+        self.channel_id = channel_id
         self.response = FakeInteractionResponse()
         self.followup = FakeInteractionFollowup()
         self.guild_id = guild_id
@@ -99,3 +101,40 @@ class FakeMessage:
     def __init__(self, *, author_id: int, content: str) -> None:
         self.author = type("FakeAuthor", (), {"id": author_id})()
         self.content = content
+
+
+@dataclass(frozen=True)
+class SentChannelMessage:
+    """One message captured from a fake channel."""
+
+    embed: discord.Embed | None
+    allowed_mentions: discord.AllowedMentions | None
+
+
+class FakeChannel:
+    """A channel or thread the daily post can be sent to, optionally failing."""
+
+    def __init__(self, *, channel_id: int, send_error: Exception | None = None) -> None:
+        self.id = channel_id
+        self.send_error = send_error
+        self.sent_messages: list[SentChannelMessage] = []
+
+    async def send(
+        self,
+        *,
+        embed: discord.Embed | None = None,
+        allowed_mentions: discord.AllowedMentions | None = None,
+    ) -> None:
+        if self.send_error is not None:
+            raise self.send_error
+        self.sent_messages.append(SentChannelMessage(embed, allowed_mentions))
+
+
+class FakeClient:
+    """The client surface the daily post needs: finding a channel by its ID."""
+
+    def __init__(self, *channels: FakeChannel) -> None:
+        self.channels_by_id = {channel.id: channel for channel in channels}
+
+    def get_channel(self, channel_id: int, /) -> FakeChannel | None:
+        return self.channels_by_id.get(channel_id)

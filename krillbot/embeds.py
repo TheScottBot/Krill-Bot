@@ -11,6 +11,10 @@ DISCORD_MESSAGE_CONTENT_LIMIT = 2_000
 DISCORD_EMBED_DESCRIPTION_LIMIT = 4_096
 BOARD_PAGE_SIZE = 20
 TRUNCATION_NOTE = "(truncated to fit Discord's limits)"
+KRILLION_URL = "https://krillion.io"
+DAILY_POST_TITLE = "Today's Krillion dive is open"
+DAILY_POST_OPENING = f"Dive in at {KRILLION_URL}, then log your result with /dive log."
+NOBODY_LOGGED_YESTERDAY_MESSAGE = "Nobody here logged yesterday's dive."
 
 HELP_TITLE = "Krill Bot"
 HELP_COMMAND_DESCRIPTION = "Show what Krill Bot does"
@@ -48,6 +52,16 @@ DAILY_POST_FIELD_NAME = "Daily post"
 SCORES_HIDDEN_SETTING = "Hidden until each viewer logs their own result"
 SCORES_SHOWN_SETTING = "Shown to everyone"
 DAILY_POST_NOT_SET_UP = "Not set up"
+DAILY_SETUP_GROUP_DESCRIPTION = "Post today's dive and yesterday's board in a channel each day"
+DAILY_HERE_DESCRIPTION = "Post the daily message in this channel, moving it here"
+DAILY_HERE_TIME_DESCRIPTION = "When to post each day, such as 5pm or 17:00"
+DAILY_HERE_RESET_DESCRIPTION = "When Krillion's daily dive resets, such as 4am or 04:00"
+DAILY_STOP_DESCRIPTION = "Stop the daily post"
+DAILY_SHOW_DESCRIPTION = "Show where and when the daily post goes"
+CLOCK_UNREADABLE_MESSAGE = "I can't read that as a time of day. Try 5pm, 6:30pm or 17:00."
+DAILY_POST_STOPPED_MESSAGE = "The daily post has stopped."
+NO_DAILY_POST_TO_STOP_MESSAGE = "There is no daily post to stop."
+NO_DAILY_POST_MESSAGE = "There is no daily post here. /setup daily here posts one in that channel."
 TODAY_HIDDEN_MESSAGE = "Today's scores are hidden until you log your own result."
 NO_BOARD_RESULTS_MESSAGE = "No results have been logged in this server yet."
 REJECTION_MESSAGES = {
@@ -104,20 +118,25 @@ def user_results_message(results: list[tuple[int, int, str]]) -> str:
     lines = [
         f"#{daily_number}: {score} points {emoji_row}" for daily_number, score, emoji_row in results
     ]
-    complete_text = "\n".join([header, *lines])
-    if _discord_length(complete_text) <= DISCORD_MESSAGE_CONTENT_LIMIT:
+    return _lines_within_limit([header, *lines], DISCORD_MESSAGE_CONTENT_LIMIT)
+
+
+def _lines_within_limit(lines: list[str], limit: int) -> str:
+    """Join lines, dropping the last ones and adding a note when they exceed the limit."""
+    complete_text = "\n".join(lines)
+    if _discord_length(complete_text) <= limit:
         return complete_text
 
-    # Oldest results are dropped first, because the newest are the ones a player checks.
+    # Later lines are dropped first: they are the oldest results or lowest ranks.
     kept_lines: list[str] = []
-    kept_length = _discord_length(header) + 1 + _discord_length(TRUNCATION_NOTE)
+    kept_length = _discord_length(TRUNCATION_NOTE)
     for line_text in lines:
         line_length = _discord_length(line_text) + 1
-        if kept_length + line_length > DISCORD_MESSAGE_CONTENT_LIMIT:
+        if kept_length + line_length > limit:
             break
         kept_lines.append(line_text)
         kept_length += line_length
-    return "\n".join([header, *kept_lines, TRUNCATION_NOTE])
+    return "\n".join([*kept_lines, TRUNCATION_NOTE])
 
 
 def _board_pages(title: str, lines: list[str]) -> list[discord.Embed]:
@@ -144,14 +163,37 @@ def _board_pages(title: str, lines: list[str]) -> list[discord.Embed]:
     return pages
 
 
-def daily_board_pages(daily_number: int, standings: list[BoardStanding]) -> list[discord.Embed]:
-    """Format one daily number's scores, each with its published bearing."""
-    lines = [
+def _daily_board_lines(standings: list[BoardStanding]) -> list[str]:
+    return [
         f"{position}. <@{standing.user_id}>: {standing.best} points, "
         f"{bearing_for_score(standing.best).name}"
         for position, standing in enumerate(standings, start=1)
     ]
-    return _board_pages(f"Daily #{daily_number}", lines)
+
+
+def daily_board_pages(daily_number: int, standings: list[BoardStanding]) -> list[discord.Embed]:
+    """Format one daily number's scores, each with its published bearing."""
+    return _board_pages(f"Daily #{daily_number}", _daily_board_lines(standings))
+
+
+def daily_post_embed(
+    yesterday_daily_number: int | None,
+    standings: list[BoardStanding],
+) -> discord.Embed:
+    """Announce today's dive with yesterday's board, inside one embed's limits."""
+    if yesterday_daily_number is None:
+        lines = [DAILY_POST_OPENING, "", NOBODY_LOGGED_YESTERDAY_MESSAGE]
+    else:
+        lines = [
+            DAILY_POST_OPENING,
+            "",
+            f"Yesterday's board, daily #{yesterday_daily_number}:",
+            *_daily_board_lines(standings),
+        ]
+    return discord.Embed(
+        title=DAILY_POST_TITLE,
+        description=_lines_within_limit(lines, DISCORD_EMBED_DESCRIPTION_LIMIT),
+    )
 
 
 def period_board_pages(period: BoardPeriod, standings: list[BoardStanding]) -> list[discord.Embed]:
@@ -171,12 +213,39 @@ def visibility_changed_message(*, hide_until_logged: bool) -> str:
     return "Scores on /dive today are now shown to everyone in this server."
 
 
-def settings_embed(
+def _clock_text(chosen_clock: str | None, default_clock: str) -> str:
+    return chosen_clock if chosen_clock is not None else f"{default_clock} (the default)"
+
+
+def daily_post_summary(
+    channel_id: int,
+    post_clock: str | None,
+    reset_clock: str | None,
     *,
-    hide_until_logged: bool,
-    daily_post_channel_id: int | None,
-    daily_post_clock: str | None,
-) -> discord.Embed:
+    default_post_clock: str,
+    default_reset_clock: str,
+) -> str:
+    """Describe where and when a daily post goes, marking times that follow the defaults."""
+    return (
+        f"<#{channel_id}> at {_clock_text(post_clock, default_post_clock)}, "
+        f"with the dive resetting at {_clock_text(reset_clock, default_reset_clock)}"
+    )
+
+
+def daily_post_set_message(summary: str, *, previous_channel_id: int | None) -> str:
+    """Confirm a daily post set up or moved by /setup daily here."""
+    confirmation = f"The daily post will go to {summary}."
+    if previous_channel_id is None:
+        return confirmation
+    return f"{confirmation}\nIt has moved here from <#{previous_channel_id}>."
+
+
+def daily_post_show_message(summary: str | None) -> str:
+    """Describe this server's daily post for /setup daily show."""
+    return NO_DAILY_POST_MESSAGE if summary is None else f"The daily post goes to {summary}."
+
+
+def settings_embed(*, hide_until_logged: bool, daily_post_summary: str | None) -> discord.Embed:
     """Describe one server's settings; a channel mention never pings anyone."""
     settings = discord.Embed(title=SETTINGS_TITLE)
     settings.add_field(
@@ -184,11 +253,11 @@ def settings_embed(
         value=SCORES_HIDDEN_SETTING if hide_until_logged else SCORES_SHOWN_SETTING,
         inline=False,
     )
-    if daily_post_channel_id is None or daily_post_clock is None:
-        daily_post_text = DAILY_POST_NOT_SET_UP
-    else:
-        daily_post_text = f"<#{daily_post_channel_id}> at {daily_post_clock}"
-    settings.add_field(name=DAILY_POST_FIELD_NAME, value=daily_post_text, inline=False)
+    settings.add_field(
+        name=DAILY_POST_FIELD_NAME,
+        value=DAILY_POST_NOT_SET_UP if daily_post_summary is None else daily_post_summary,
+        inline=False,
+    )
     return settings
 
 

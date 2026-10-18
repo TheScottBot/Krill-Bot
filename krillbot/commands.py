@@ -10,8 +10,9 @@ from typing import Any, Literal
 import discord
 from discord import app_commands
 
-from krillbot import db, embeds
+from krillbot import config, db, embeds
 from krillbot.boards import BoardPeriod, calculate_streak, compile_board
+from krillbot.clock import next_occurrence, parse_clock
 from krillbot.result_grammar import ParsedResult, ParseRejection, parse_daily_result
 
 NO_MENTIONS = discord.AllowedMentions.none()
@@ -268,12 +269,127 @@ async def setup_show_command(interaction: discord.Interaction) -> None:
         )
         return
     connection = _database_connection(interaction)
-    daily_post = db.daily_post_setting(connection, guild_id=guild_id)
     await interaction.response.send_message(
         embed=embeds.settings_embed(
             hide_until_logged=db.hide_scores_until_logged(connection, guild_id=guild_id),
-            daily_post_channel_id=None if daily_post is None else daily_post.channel_id,
-            daily_post_clock=None if daily_post is None else daily_post.clock,
+            daily_post_summary=_daily_post_summary(connection, guild_id),
+        ),
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
+def _daily_post_summary(connection: sqlite3.Connection, guild_id: int) -> str | None:
+    daily_post = db.daily_post_setting(connection, guild_id=guild_id)
+    if daily_post is None:
+        return None
+    return embeds.daily_post_summary(
+        daily_post.channel_id,
+        daily_post.clock,
+        daily_post.reset_clock,
+        default_post_clock=config.DAILY_POST_TIME,
+        default_reset_clock=config.DAILY_RESET_TIME,
+    )
+
+
+# Built apart from /setup until it is attached there; see the KE5 progress report.
+daily_setup_group = app_commands.Group(
+    name="daily",
+    description=embeds.DAILY_SETUP_GROUP_DESCRIPTION,
+    guild_only=True,
+    default_permissions=discord.Permissions(manage_guild=True),
+)
+
+
+@daily_setup_group.command(name="here", description=embeds.DAILY_HERE_DESCRIPTION)
+@app_commands.describe(
+    time=embeds.DAILY_HERE_TIME_DESCRIPTION,
+    reset=embeds.DAILY_HERE_RESET_DESCRIPTION,
+)
+@app_commands.checks.has_permissions(manage_guild=True)
+async def daily_here_command(
+    interaction: discord.Interaction,
+    time: str | None = None,
+    reset: str | None = None,
+) -> None:
+    """Set up or move this server's daily post to the current channel or thread."""
+    guild_id = interaction.guild_id
+    channel_id = interaction.channel_id
+    if guild_id is None or channel_id is None:
+        await interaction.response.send_message(
+            embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    # An omitted time is stored as unset, so the server follows the environment
+    # fallback even if that changes later.
+    post_clock = None if time is None else parse_clock(time)
+    reset_clock = None if reset is None else parse_clock(reset)
+    if (time is not None and post_clock is None) or (reset is not None and reset_clock is None):
+        await interaction.response.send_message(
+            embeds.CLOCK_UNREADABLE_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    connection = _database_connection(interaction)
+    previous_channel_id = db.set_daily_post(
+        connection,
+        guild_id=guild_id,
+        channel_id=channel_id,
+        post_clock=post_clock,
+        reset_clock=reset_clock,
+        next_run=next_occurrence(
+            post_clock or config.DAILY_POST_TIME,
+            datetime.now(UTC),
+            config.BOT_TIMEZONE,
+        ),
+    )
+    LOGGER.info("[%s] Daily post set up in channel %s", guild_id, channel_id)
+    summary = embeds.daily_post_summary(
+        channel_id,
+        post_clock,
+        reset_clock,
+        default_post_clock=config.DAILY_POST_TIME,
+        default_reset_clock=config.DAILY_RESET_TIME,
+    )
+    await interaction.response.send_message(
+        embeds.daily_post_set_message(summary, previous_channel_id=previous_channel_id),
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
+@daily_setup_group.command(name="stop", description=embeds.DAILY_STOP_DESCRIPTION)
+@app_commands.checks.has_permissions(manage_guild=True)
+async def daily_stop_command(interaction: discord.Interaction) -> None:
+    """Stop this server's daily post; stopping twice is harmless."""
+    guild_id = interaction.guild_id
+    if guild_id is None:
+        await interaction.response.send_message(
+            embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    stopped = db.stop_daily_post(_database_connection(interaction), guild_id=guild_id)
+    if stopped:
+        LOGGER.info("[%s] Daily post stopped", guild_id)
+    await interaction.response.send_message(
+        embeds.DAILY_POST_STOPPED_MESSAGE if stopped else embeds.NO_DAILY_POST_TO_STOP_MESSAGE,
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
+@daily_setup_group.command(name="show", description=embeds.DAILY_SHOW_DESCRIPTION)
+@app_commands.checks.has_permissions(manage_guild=True)
+async def daily_show_command(interaction: discord.Interaction) -> None:
+    """Show where and when this server's daily post goes."""
+    guild_id = interaction.guild_id
+    if guild_id is None:
+        await interaction.response.send_message(
+            embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    await interaction.response.send_message(
+        embeds.daily_post_show_message(
+            _daily_post_summary(_database_connection(interaction), guild_id)
         ),
         ephemeral=True,
         allowed_mentions=NO_MENTIONS,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -381,4 +381,212 @@ def test_setup_show_reports_this_servers_settings_privately() -> None:
     assert [(field.name, field.value) for field in response.embed.fields] == [
         ("Today's scores", "Hidden until each viewer logs their own result"),
         ("Daily post", "Not set up"),
+    ]
+
+
+def daily_setup_commands() -> list[discord.app_commands.Command[Any, ..., Any]]:
+    return [
+        daily_command
+        for daily_command in commands.daily_setup_group.walk_commands()
+        if isinstance(daily_command, discord.app_commands.Command)
+    ]
+
+
+def stored_daily_post(connection: Any, guild_id: int = 10) -> tuple[Any, ...] | None:
+    row: tuple[Any, ...] | None = connection.execute(
+        "SELECT channel_id, clock, reset_clock, next_run FROM daily_posts WHERE guild_id = ?",
+        (guild_id,),
+    ).fetchone()
+    return row
+
+
+def test_daily_setup_offers_here_stop_and_show_each_requiring_manage_server() -> None:
+    refused_interaction = FakeInteraction(guild_id=10, permissions=discord.Permissions.none())
+
+    assert sorted(daily_command.name for daily_command in daily_setup_commands()) == [
+        "here",
+        "show",
+        "stop",
+    ]
+    for daily_command in daily_setup_commands():
+        assert daily_command.checks, daily_command.name
+        for permission_check in daily_command.checks:
+            try:
+                permission_check(refused_interaction)
+            except discord.app_commands.MissingPermissions:
+                continue
+            raise AssertionError(f"/setup daily {daily_command.name} accepted a non-manager")
+
+
+def test_daily_here_without_times_follows_the_defaults_and_replies_privately(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(commands.config, "DAILY_POST_TIME", "17:00")
+    monkeypatch.setattr(commands.config, "DAILY_RESET_TIME", "04:00")
+    connection = db.initialise(":memory:")
+    interaction = FakeInteraction(
+        guild_id=10,
+        channel_id=300,
+        client=SimpleNamespace(database_connection=connection),
+    )
+    before_setup = datetime.now(UTC)
+    try:
+        complete_immediate_coroutine(commands.daily_here_command.callback(interaction, None, None))
+        stored_row = stored_daily_post(connection)
+    finally:
+        connection.close()
+
+    assert stored_row is not None
+    channel_id, post_clock, reset_clock, next_run = stored_row
+    assert (channel_id, post_clock, reset_clock) == (300, None, None)
+    assert before_setup < datetime.fromisoformat(next_run) <= before_setup + timedelta(days=1)
+    assert interaction.last_response.content == (
+        "The daily post will go to <#300> at 17:00 (the default), "
+        "with the dive resetting at 04:00 (the default)."
+    )
+    assert interaction.last_response.ephemeral is True
+    assert interaction.last_response.allowed_mentions is not None
+
+
+def test_daily_here_stores_the_servers_own_times() -> None:
+    connection = db.initialise(":memory:")
+    interaction = FakeInteraction(
+        guild_id=10,
+        channel_id=300,
+        client=SimpleNamespace(database_connection=connection),
+    )
+    try:
+        complete_immediate_coroutine(
+            commands.daily_here_command.callback(interaction, "6pm", "5:30am")
+        )
+        stored_row = stored_daily_post(connection)
+    finally:
+        connection.close()
+
+    assert stored_row is not None
+    assert stored_row[:3] == (300, "18:00", "05:30")
+    assert interaction.last_response.content == (
+        "The daily post will go to <#300> at 18:00, with the dive resetting at 05:30."
+    )
+
+
+def test_daily_here_says_when_the_post_has_moved_channel() -> None:
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    try:
+        complete_immediate_coroutine(
+            commands.daily_here_command.callback(
+                FakeInteraction(guild_id=10, channel_id=300, client=client), "6pm", "4am"
+            )
+        )
+        moving_interaction = FakeInteraction(guild_id=10, channel_id=301, client=client)
+        complete_immediate_coroutine(
+            commands.daily_here_command.callback(moving_interaction, "6pm", "4am")
+        )
+    finally:
+        connection.close()
+
+    assert moving_interaction.last_response.content == (
+        "The daily post will go to <#301> at 18:00, with the dive resetting at 04:00.\n"
+        "It has moved here from <#300>."
+    )
+
+
+def test_daily_here_refuses_an_unreadable_time_and_stores_nothing() -> None:
+    connection = db.initialise(":memory:")
+    interaction = FakeInteraction(
+        guild_id=10,
+        channel_id=300,
+        client=SimpleNamespace(database_connection=connection),
+    )
+    try:
+        complete_immediate_coroutine(
+            commands.daily_here_command.callback(interaction, "6pm", "teatime")
+        )
+        stored_row = stored_daily_post(connection)
+    finally:
+        connection.close()
+
+    assert stored_row is None
+    assert interaction.last_response.content == (
+        "I can't read that as a time of day. Try 5pm, 6:30pm or 17:00."
+    )
+    assert interaction.last_response.ephemeral is True
+
+
+def test_daily_stop_is_idempotent_and_says_what_happened() -> None:
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    first_stop = FakeInteraction(guild_id=10, client=client)
+    second_stop = FakeInteraction(guild_id=10, client=client)
+    try:
+        complete_immediate_coroutine(
+            commands.daily_here_command.callback(
+                FakeInteraction(guild_id=10, channel_id=300, client=client), None, None
+            )
+        )
+        complete_immediate_coroutine(commands.daily_stop_command.callback(first_stop))
+        complete_immediate_coroutine(commands.daily_stop_command.callback(second_stop))
+        stored_row = stored_daily_post(connection)
+    finally:
+        connection.close()
+
+    assert stored_row is None
+    assert first_stop.last_response.content == "The daily post has stopped."
+    assert second_stop.last_response.content == "There is no daily post to stop."
+    assert second_stop.last_response.ephemeral is True
+
+
+def test_daily_show_describes_the_post_or_its_absence(monkeypatch: Any) -> None:
+    monkeypatch.setattr(commands.config, "DAILY_POST_TIME", "17:00")
+    monkeypatch.setattr(commands.config, "DAILY_RESET_TIME", "04:00")
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    before_interaction = FakeInteraction(guild_id=10, client=client)
+    after_interaction = FakeInteraction(guild_id=10, client=client)
+    try:
+        complete_immediate_coroutine(commands.daily_show_command.callback(before_interaction))
+        complete_immediate_coroutine(
+            commands.daily_here_command.callback(
+                FakeInteraction(guild_id=10, channel_id=300, client=client), None, "5am"
+            )
+        )
+        complete_immediate_coroutine(commands.daily_show_command.callback(after_interaction))
+    finally:
+        connection.close()
+
+    assert before_interaction.last_response.content == (
+        "There is no daily post here. /setup daily here posts one in that channel."
+    )
+    assert after_interaction.last_response.content == (
+        "The daily post goes to <#300> at 17:00 (the default), with the dive resetting at 05:00."
+    )
+    assert after_interaction.last_response.ephemeral is True
+
+
+def test_setup_show_reports_a_daily_post_that_follows_the_default_time(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(commands.config, "DAILY_POST_TIME", "17:00")
+    monkeypatch.setattr(commands.config, "DAILY_RESET_TIME", "04:00")
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    show_interaction = FakeInteraction(guild_id=10, client=client)
+    try:
+        complete_immediate_coroutine(
+            commands.daily_here_command.callback(
+                FakeInteraction(guild_id=10, channel_id=300, client=client), None, None
+            )
+        )
+        complete_immediate_coroutine(commands.setup_show_command.callback(show_interaction))
+    finally:
+        connection.close()
+
+    assert show_interaction.last_response.embed is not None
+    assert [(field.name, field.value) for field in show_interaction.last_response.embed.fields] == [
+        ("Today's scores", "Hidden until each viewer logs their own result"),
+        (
+            "Daily post",
+            "<#300> at 17:00 (the default), with the dive resetting at 04:00 (the default)",
+        ),
     ]

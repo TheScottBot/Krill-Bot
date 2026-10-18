@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, cast
 
 import discord
 from discord import app_commands
+from discord.ext import tasks
 
-from krillbot import config, db, embeds
+from krillbot import config, daily, db, embeds
 from krillbot.commands import APPLICATION_COMMANDS, NO_MENTIONS
 
 LOGGER = logging.getLogger("krillbot")
@@ -62,6 +64,23 @@ class KrillBot(discord.Client):
         # exposes on_error as a method and therefore rejects that documented pattern.
         command_tree_with_assignable_callback = cast(Any, self.tree)
         command_tree_with_assignable_callback.on_error = self.on_app_command_error
+
+    @tasks.loop(minutes=1)
+    async def daily_loop(self) -> None:
+        """Send every daily post that has come due."""
+        if self.database_connection is None:
+            return
+        await daily.post_due(self, self.database_connection, datetime.now(UTC))
+
+    async def on_ready(self) -> None:
+        """Start the daily loop once the gateway is ready.
+
+        Started here rather than in setup_hook, as ProcBot does, so the loop only
+        runs against a ready client and setup_hook stays free of background
+        tasks. Ready fires again after a reconnect, hence the guard.
+        """
+        if not self.daily_loop.is_running():
+            self.daily_loop.start()
 
     async def setup_hook(self) -> None:
         """Register commands immediately in development servers or globally."""

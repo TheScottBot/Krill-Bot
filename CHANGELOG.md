@@ -28,3 +28,7 @@
 - Recorded what Python offers for memory and undefined behaviour analysis, and
   ran the whole suite under development mode with warnings as errors in
   continuous integration.
+- Added the daily post: per-server post and reset times with environment
+  fallbacks of 17:00 and 04:00, `/setup daily here`, `stop` and `show`,
+  yesterday's board, a six-hour grace period, and a one-minute loop that
+  always moves each post on to its next day.

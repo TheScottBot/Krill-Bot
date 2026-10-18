@@ -9,9 +9,11 @@ from datetime import datetime
 from krillbot.boards import BoardEntry
 from krillbot.result_grammar import ParsedResult
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-SCHEMA_STATEMENTS = (
+# The first schema is kept verbatim so a new database follows the same upgrade
+# path as an old one, and every upgrade is exercised on every fresh start.
+SCHEMA_VERSION_1_STATEMENTS = (
     """
     CREATE TABLE daily_results (
         guild_id INTEGER NOT NULL,
@@ -38,6 +40,29 @@ SCHEMA_STATEMENTS = (
     )
     """,
 )
+
+# Version 2 lets a server leave its post and reset times unset, so it follows
+# the environment fallbacks if they change, and stores the server's reset time.
+# SQLite cannot drop a NOT NULL constraint in place, so the table is rebuilt.
+SCHEMA_UPGRADE_STATEMENTS = {
+    2: (
+        """
+        CREATE TABLE daily_posts_version_2 (
+            guild_id INTEGER PRIMARY KEY,
+            channel_id INTEGER NOT NULL,
+            clock TEXT,
+            reset_clock TEXT,
+            next_run TEXT NOT NULL
+        )
+        """,
+        """
+        INSERT INTO daily_posts_version_2 (guild_id, channel_id, clock, reset_clock, next_run)
+        SELECT guild_id, channel_id, clock, NULL, next_run FROM daily_posts
+        """,
+        "DROP TABLE daily_posts",
+        "ALTER TABLE daily_posts_version_2 RENAME TO daily_posts",
+    ),
+}
 
 
 class NewerSchemaError(RuntimeError):
@@ -76,8 +101,13 @@ def initialise_connection(connection: sqlite3.Connection) -> None:
         return
 
     with connection:
-        for statement in SCHEMA_STATEMENTS:
-            connection.execute(statement)
+        if current_version == 0:
+            for statement in SCHEMA_VERSION_1_STATEMENTS:
+                connection.execute(statement)
+            current_version = 1
+        for target_version in range(current_version + 1, SCHEMA_VERSION + 1):
+            for statement in SCHEMA_UPGRADE_STATEMENTS[target_version]:
+                connection.execute(statement)
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -216,7 +246,19 @@ class DailyPostSetting:
     """Where and when one server's daily post is sent."""
 
     channel_id: int
-    clock: str
+    clock: str | None
+    reset_clock: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DailyPostSchedule:
+    """A server's daily post as the posting loop needs it."""
+
+    guild_id: int
+    channel_id: int
+    post_clock: str | None
+    reset_clock: str | None
+    next_run: datetime
 
 
 def set_hide_scores_until_logged(
@@ -239,7 +281,98 @@ def set_hide_scores_until_logged(
 def daily_post_setting(connection: sqlite3.Connection, *, guild_id: int) -> DailyPostSetting | None:
     """Return one server's daily post, or nothing when it has not set one up."""
     row = connection.execute(
-        "SELECT channel_id, clock FROM daily_posts WHERE guild_id = ?",
+        "SELECT channel_id, clock, reset_clock FROM daily_posts WHERE guild_id = ?",
         (guild_id,),
     ).fetchone()
     return None if row is None else DailyPostSetting(*row)
+
+
+def set_daily_post(
+    connection: sqlite3.Connection,
+    *,
+    guild_id: int,
+    channel_id: int,
+    post_clock: str | None,
+    reset_clock: str | None,
+    next_run: datetime,
+) -> int | None:
+    """Set up or move one server's daily post, returning the channel it left."""
+    with connection:
+        previous_row = connection.execute(
+            "SELECT channel_id FROM daily_posts WHERE guild_id = ?",
+            (guild_id,),
+        ).fetchone()
+        connection.execute(
+            """
+            INSERT INTO daily_posts (guild_id, channel_id, clock, reset_clock, next_run)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                channel_id = excluded.channel_id,
+                clock = excluded.clock,
+                reset_clock = excluded.reset_clock,
+                next_run = excluded.next_run
+            """,
+            (guild_id, channel_id, post_clock, reset_clock, next_run.isoformat()),
+        )
+    if previous_row is None or previous_row[0] == channel_id:
+        return None
+    return int(previous_row[0])
+
+
+def stop_daily_post(connection: sqlite3.Connection, *, guild_id: int) -> bool:
+    """Stop one server's daily post, reporting whether there was one to stop."""
+    with connection:
+        cursor = connection.execute("DELETE FROM daily_posts WHERE guild_id = ?", (guild_id,))
+    return cursor.rowcount > 0
+
+
+def daily_posts_due(connection: sqlite3.Connection, *, now: datetime) -> list[DailyPostSchedule]:
+    """Return every daily post whose next run has arrived, oldest first."""
+    rows = connection.execute(
+        "SELECT guild_id, channel_id, clock, reset_clock, next_run FROM daily_posts"
+    ).fetchall()
+    schedules = [
+        DailyPostSchedule(
+            guild_id=guild_id,
+            channel_id=channel_id,
+            post_clock=post_clock,
+            reset_clock=reset_clock,
+            next_run=datetime.fromisoformat(next_run),
+        )
+        for guild_id, channel_id, post_clock, reset_clock, next_run in rows
+    ]
+    return sorted(
+        (schedule for schedule in schedules if schedule.next_run <= now),
+        key=lambda schedule: (schedule.next_run, schedule.guild_id),
+    )
+
+
+def move_daily_post_on(
+    connection: sqlite3.Connection, *, guild_id: int, next_run: datetime
+) -> None:
+    """Record one server's next daily post time."""
+    with connection:
+        connection.execute(
+            "UPDATE daily_posts SET next_run = ? WHERE guild_id = ?",
+            (next_run.isoformat(), guild_id),
+        )
+
+
+def daily_numbers_logged_between(
+    connection: sqlite3.Connection,
+    *,
+    guild_id: int,
+    start: datetime,
+    end: datetime,
+) -> set[int]:
+    """Return one server's daily numbers logged at or after start and before end."""
+    rows = connection.execute(
+        "SELECT daily_number, logged_at FROM daily_results WHERE guild_id = ?",
+        (guild_id,),
+    ).fetchall()
+    # Compared as instants rather than text, because isoformat omits zero microseconds.
+    return {
+        daily_number
+        for daily_number, logged_at in rows
+        if start <= datetime.fromisoformat(logged_at) < end
+    }

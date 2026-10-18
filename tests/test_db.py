@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -184,3 +184,159 @@ def test_daily_post_setting_is_absent_until_a_server_sets_one_up() -> None:
         )
     finally:
         connection.close()
+
+
+DUE_AT = datetime(2026, 10, 18, 16, 0, tzinfo=UTC)
+
+
+def test_version_one_database_upgrades_keeping_rows_and_allowing_default_times() -> None:
+    connection = sqlite3.connect(":memory:")
+    try:
+        for statement in db.SCHEMA_VERSION_1_STATEMENTS:
+            connection.execute(statement)
+        connection.execute("PRAGMA user_version = 1")
+        connection.execute(
+            "INSERT INTO daily_posts (guild_id, channel_id, clock, next_run) VALUES (?, ?, ?, ?)",
+            (10, 300, "09:00", DUE_AT.isoformat()),
+        )
+        connection.commit()
+
+        db.initialise_connection(connection)
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        preserved_setting = db.daily_post_setting(connection, guild_id=10)
+        db.set_daily_post(
+            connection,
+            guild_id=11,
+            channel_id=301,
+            post_clock=None,
+            reset_clock=None,
+            next_run=DUE_AT,
+        )
+        default_setting = db.daily_post_setting(connection, guild_id=11)
+    finally:
+        connection.close()
+
+    assert version == db.SCHEMA_VERSION == 2
+    assert preserved_setting == db.DailyPostSetting(channel_id=300, clock="09:00")
+    assert default_setting == db.DailyPostSetting(channel_id=301, clock=None, reset_clock=None)
+
+
+def test_set_daily_post_moves_a_servers_post_and_reports_the_previous_channel() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        first_previous = db.set_daily_post(
+            connection,
+            guild_id=10,
+            channel_id=300,
+            post_clock="18:00",
+            reset_clock="05:00",
+            next_run=DUE_AT,
+        )
+        second_previous = db.set_daily_post(
+            connection,
+            guild_id=10,
+            channel_id=301,
+            post_clock=None,
+            reset_clock="05:00",
+            next_run=DUE_AT,
+        )
+        stored_setting = db.daily_post_setting(connection, guild_id=10)
+        row_count = connection.execute("SELECT COUNT(*) FROM daily_posts").fetchone()[0]
+    finally:
+        connection.close()
+
+    assert first_previous is None
+    assert second_previous == 300
+    assert stored_setting == db.DailyPostSetting(channel_id=301, clock=None, reset_clock="05:00")
+    assert row_count == 1
+
+
+def test_stop_daily_post_is_idempotent_and_scoped_to_one_server() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        for guild_id in (10, 11):
+            db.set_daily_post(
+                connection,
+                guild_id=guild_id,
+                channel_id=300 + guild_id,
+                post_clock=None,
+                reset_clock=None,
+                next_run=DUE_AT,
+            )
+
+        assert db.stop_daily_post(connection, guild_id=10) is True
+        assert db.stop_daily_post(connection, guild_id=10) is False
+        assert db.daily_post_setting(connection, guild_id=10) is None
+        assert db.daily_post_setting(connection, guild_id=11) is not None
+    finally:
+        connection.close()
+
+
+def test_due_daily_posts_are_those_whose_next_run_has_arrived_and_can_move_on() -> None:
+    connection = db.initialise(":memory:")
+    later = DUE_AT + timedelta(hours=1)
+    try:
+        db.set_daily_post(
+            connection,
+            guild_id=10,
+            channel_id=300,
+            post_clock="17:00",
+            reset_clock=None,
+            next_run=DUE_AT,
+        )
+        db.set_daily_post(
+            connection,
+            guild_id=11,
+            channel_id=301,
+            post_clock=None,
+            reset_clock="05:00",
+            next_run=later,
+        )
+        due_now = db.daily_posts_due(connection, now=DUE_AT)
+        db.move_daily_post_on(connection, guild_id=10, next_run=DUE_AT + timedelta(days=1))
+        due_after_moving_on = db.daily_posts_due(connection, now=later)
+    finally:
+        connection.close()
+
+    assert due_now == [
+        db.DailyPostSchedule(
+            guild_id=10,
+            channel_id=300,
+            post_clock="17:00",
+            reset_clock=None,
+            next_run=DUE_AT,
+        )
+    ]
+    assert [schedule.guild_id for schedule in due_after_moving_on] == [11]
+
+
+def test_daily_numbers_logged_in_a_window_are_scoped_to_one_server() -> None:
+    connection = db.initialise(":memory:")
+    window_start = datetime(2026, 10, 17, 3, 0, tzinfo=UTC)
+    window_end = datetime(2026, 10, 18, 3, 0, tzinfo=UTC)
+    try:
+        for guild_id, daily_number, logged_at in (
+            (10, 94, window_start - timedelta(seconds=1)),
+            (10, 95, window_start),
+            (10, 95, window_end - timedelta(microseconds=1)),
+            (10, 96, window_end),
+            (11, 95, window_start + timedelta(hours=1)),
+        ):
+            db.store_daily_result(
+                connection,
+                guild_id,
+                daily_number * 10 + guild_id + logged_at.second,
+                ParsedResult(daily_number, 100, "🫧🫧🫧🫧🫧🫧🫧", 70, True, False),
+                logged_at,
+            )
+
+        numbers = db.daily_numbers_logged_between(
+            connection,
+            guild_id=10,
+            start=window_start,
+            end=window_end,
+        )
+    finally:
+        connection.close()
+
+    assert numbers == {95}
