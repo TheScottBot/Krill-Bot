@@ -43,7 +43,9 @@ def test_real_daily_samples_parse(
         daily_number=expected_daily_number,
         score=expected_score,
         emoji_row=expected_emoji_row,
-        score_matches_row=True,
+        known_points_total=expected_score,
+        row_fully_known=True,
+        score_matches_known_points=True,
     )
 
 
@@ -56,7 +58,9 @@ def test_result_is_found_inside_surrounding_conversation() -> None:
         daily_number=95,
         score=435,
         emoji_row="🐟🏮🏮🦑🐟🏮🦑",
-        score_matches_row=True,
+        known_points_total=435,
+        row_fully_known=True,
+        score_matches_known_points=True,
     )
 
 
@@ -67,7 +71,22 @@ def test_score_mismatch_is_reported_without_rejecting_the_result() -> None:
         daily_number=95,
         score=436,
         emoji_row="🐟🏮🏮🦑🐟🏮🦑",
-        score_matches_row=False,
+        known_points_total=435,
+        row_fully_known=True,
+        score_matches_known_points=False,
+    )
+
+
+def test_unknown_emoji_is_preserved_and_known_points_are_still_totalled() -> None:
+    supplied_text = "Krillion #96 🦐\n435\n\n🐟🏮🏮🦑🐟🏮🧑‍🚀"
+
+    assert parse_daily_result(supplied_text) == ParsedResult(
+        daily_number=96,
+        score=435,
+        emoji_row="🐟🏮🏮🦑🐟🏮🧑‍🚀",
+        known_points_total=375,
+        row_fully_known=False,
+        score_matches_known_points=False,
     )
 
 
@@ -108,7 +127,7 @@ def test_input_over_discord_message_limit_is_rejected_before_parsing() -> None:
         "ordinary conversation",
         "Krillion #95 🦐\n435\n🐟🏮🏮🦑🐟🏮🦑",
         "Krillion #95 🦐\n435\n\n🐟🏮🏮🦑🐟🏮",
-        "Krillion #95 🦐\n435\n\n🐟🏮🏮🦑🐟🏮🦐",
+        "Krillion #95 🦐\n435\n\n🐟🏮🏮 🦑🐟🏮",
     ),
 )
 def test_malformed_or_unknown_daily_result_is_rejected(supplied_text: str) -> None:
@@ -147,5 +166,7 @@ def test_parser_returns_only_fields_from_the_result_block(surrounding_text: str)
         daily_number=95,
         score=435,
         emoji_row="🐟🏮🏮🦑🐟🏮🦑",
-        score_matches_row=True,
+        known_points_total=435,
+        row_fully_known=True,
+        score_matches_known_points=True,
     )

@@ -9,4 +9,6 @@
 - Added the author-selected MIT licence under TheScottBot.
 - Added the known daily-result grammar, bearing calculation, six real fixtures,
   parser fuzz properties, and an explicit contract record.
+- Allowed new round emoji without rejecting a result while retaining a
+  conservative subtotal and full-row validation signal.
 

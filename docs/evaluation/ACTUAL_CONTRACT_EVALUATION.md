@@ -459,6 +459,10 @@ project specification.
 18. Planted a repository check for a distinct parser fuzz gate. Result: the
     check failed because continuous integration ran only the general suite,
     before the explicit parser-property step was added.
+19. The author changed the parser policy to tolerate new round emoji and any
+    non-negative copied score. Revised tests failed against the closed symbol
+    model, then passed after unknown rows became opaque and the parser exposed a
+    recognised-symbol subtotal plus a conservative validation signal.
 
 ## KE2 progress report, 18 October 2026
 
@@ -481,6 +485,14 @@ These are recorded limitations, not silently invented behaviour.
 KE2 is implemented to the author-approved evidence boundary but is not complete
 against the full draft specification until genuine fixtures settle those two
 rejection cases and any additional round symbol.
+
+Update, 18 October 2026: the author superseded the closed-symbol boundary.
+Unknown round emoji must now be accepted so game changes do not stop logging.
+Known points are totalled, but a score is considered checked only when the whole
+row is recognised. A fully known row retains the seven-symbol check. A row with
+an unknown symbol remains opaque because the standard library cannot reliably
+segment every composed emoji. Additional symbols no longer block KE2; genuine
+non-daily fixtures and reset mapping still do.
 
 ## KE1 progress report, 18 October 2026
 
@@ -510,7 +522,7 @@ Current automated results on Windows with Python 3.14.7:
 - Ruff lint: passed with no findings
 - Ruff format check: 28 files formatted
 - MyPy strict analysis: 10 source files passed with no issues
-- Pytest: 48 passed in 2.52 seconds
+- Pytest: 49 passed in 2.25 seconds
 - warnings: none reported
 - skipped tests: none
 

@@ -50,14 +50,15 @@ class ParsedResult:
     daily_number: int
     score: int
     emoji_row: str
-    score_matches_row: bool
+    known_points_total: int
+    row_fully_known: bool
+    score_matches_known_points: bool
 
 
-_ROUND_CHARACTER_CLASS = "".join(re.escape(symbol) for symbol in ROUND_POINTS)
 _DAILY_RESULT_PATTERN = re.compile(
-    rf"^Krillion #(?P<daily_number>[1-9][0-9]*) 🦐\r?\n"
-    rf"(?P<score>0|[1-9][0-9]*)\r?\n\r?\n"
-    rf"(?P<emoji_row>[{_ROUND_CHARACTER_CLASS}]{{7}})$",
+    r"^Krillion #(?P<daily_number>[1-9][0-9]*) 🦐\r?\n"
+    r"(?P<score>0|[1-9][0-9]*)\r?\n\r?\n"
+    r"(?P<emoji_row>\S+)$",
     re.MULTILINE,
 )
 
@@ -77,19 +78,27 @@ def parse_daily_result(supplied_text: str) -> ParsedResult | ParseRejection:
     if len(supplied_text) > MAXIMUM_INPUT_LENGTH:
         return ParseRejection.TOO_LONG
 
-    matches = list(_DAILY_RESULT_PATTERN.finditer(supplied_text))
-    if not matches:
-        return ParseRejection.NOT_A_RESULT
-    if len(matches) > 1:
-        return ParseRejection.SEVERAL_RESULTS
+    parsed_results: list[ParsedResult] = []
+    for matched_block in _DAILY_RESULT_PATTERN.finditer(supplied_text):
+        emoji_row = matched_block.group("emoji_row")
+        row_fully_known = all(symbol in ROUND_POINTS for symbol in emoji_row)
+        if row_fully_known and len(emoji_row) != 7:
+            continue
+        score = int(matched_block.group("score"))
+        known_points_total = sum(ROUND_POINTS.get(symbol, 0) for symbol in emoji_row)
+        parsed_results.append(
+            ParsedResult(
+                daily_number=int(matched_block.group("daily_number")),
+                score=score,
+                emoji_row=emoji_row,
+                known_points_total=known_points_total,
+                row_fully_known=row_fully_known,
+                score_matches_known_points=row_fully_known and score == known_points_total,
+            )
+        )
 
-    matched_block = matches[0]
-    emoji_row = matched_block.group("emoji_row")
-    score = int(matched_block.group("score"))
-    inferred_score = sum(ROUND_POINTS[symbol] for symbol in emoji_row)
-    return ParsedResult(
-        daily_number=int(matched_block.group("daily_number")),
-        score=score,
-        emoji_row=emoji_row,
-        score_matches_row=score == inferred_score,
-    )
+    if not parsed_results:
+        return ParseRejection.NOT_A_RESULT
+    if len(parsed_results) > 1:
+        return ParseRejection.SEVERAL_RESULTS
+    return parsed_results[0]
