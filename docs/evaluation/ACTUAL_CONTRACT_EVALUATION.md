@@ -463,6 +463,10 @@ project specification.
     non-negative copied score. Revised tests failed against the closed symbol
     model, then passed after unknown rows became opaque and the parser exposed a
     recognised-symbol subtotal plus a conservative validation signal.
+20. Planted KE3 tests for exact storage, replacement, server isolation, private
+    replies, refusal privacy, and message authorship. Result: nine focused tests
+    failed because the query and command interfaces did not exist, then the
+    focused slice passed after their implementation.
 
 ## KE2 progress report, 18 October 2026
 
@@ -494,6 +498,19 @@ an unknown symbol remains opaque because the standard library cannot reliably
 segment every composed emoji. Additional symbols no longer block KE2; genuine
 non-daily fixtures and reset mapping still do.
 
+## KE3 progress report, 18 October 2026
+
+Implemented so far: atomic server-scoped result insertion and replacement,
+newest-first personal history, `/dive log`, private `/dive me`, and the Log
+Krillion result message menu. The menu refuses messages not written by the
+caller. Refused text is neither stored nor logged; the log records only the
+server and stable rejection reason. Accepted rows store only the six schema
+columns, and an unverified score records only a server-scoped diagnostic.
+
+KE3 is not complete against the full draft specification. Daily aggregate
+refusal counters and the format-change warning require the author-selected KU9
+threshold. The implemented command and storage slice does not guess it.
+
 ## KE1 progress report, 18 October 2026
 
 Implemented so far: package and stable launchers, validated environment
@@ -522,7 +539,7 @@ Current automated results on Windows with Python 3.14.7:
 - Ruff lint: passed with no findings
 - Ruff format check: 28 files formatted
 - MyPy strict analysis: 10 source files passed with no issues
-- Pytest: 49 passed in 2.25 seconds
+- Pytest: 57 passed in 2.75 seconds
 - warnings: none reported
 - skipped tests: none
 

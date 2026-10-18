@@ -54,10 +54,27 @@ class FakeInteractionResponse:
 class FakeInteraction:
     """The interaction surface needed by KE1 command tests."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        guild_id: int | None = None,
+        user_id: int = 100,
+        client: Any = None,
+    ) -> None:
         self.response = FakeInteractionResponse()
+        self.guild_id = guild_id
+        self.user = type("FakeUser", (), {"id": user_id})()
+        self.client = client
 
     @property
     def last_response(self) -> SentResponse:
         """Return the most recently captured response."""
         return self.response.sent_responses[-1]
+
+
+class FakeMessage:
+    """The selected-message surface needed by the context menu."""
+
+    def __init__(self, *, author_id: int, content: str) -> None:
+        self.author = type("FakeAuthor", (), {"id": author_id})()
+        self.content = content

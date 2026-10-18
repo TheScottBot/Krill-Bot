@@ -19,7 +19,11 @@ def test_client_uses_default_intents_without_privileged_message_content() -> Non
 
     assert client.intents == client.intents.default()
     assert client.intents.message_content is False
-    assert [command.name for command in client.tree.get_commands()] == ["help"]
+    assert [command.name for command in client.tree.get_commands()] == [
+        "dive",
+        "help",
+        "Log Krillion result",
+    ]
 
 
 def test_command_completion_log_contains_server_and_command_only(caplog) -> None:

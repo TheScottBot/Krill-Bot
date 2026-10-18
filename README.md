@@ -4,9 +4,10 @@ Krill Bot is an unofficial Discord scoreboard companion for Krillion. Players
 choose to submit the result copied by Krillion; the bot never contacts
 krillion.io and never reads ordinary channel messages.
 
-The project has a pure parser for the known daily Copy result grammar. Boards,
-daily posting, deletion controls, and public documents will be added only in
-their specification phases. The current evidence boundary is recorded in
+The project has a pure parser for daily Copy results and private commands for
+logging and reviewing a player's server-scoped results. Boards, daily posting,
+deletion controls, and public documents will be added only in their
+specification phases. The current evidence boundary is recorded in
 `CONTRACT.md`.
 
 ## Development

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, cast
@@ -51,8 +52,9 @@ def setup_logging() -> None:
 class KrillBot(discord.Client):
     """A slash-command client that does not consume privileged message events."""
 
-    def __init__(self) -> None:
+    def __init__(self, database_connection: sqlite3.Connection | None = None) -> None:
         super().__init__(intents=discord.Intents.default())
+        self.database_connection = database_connection
         self.tree = app_commands.CommandTree(self)
         for application_command in APPLICATION_COMMANDS:
             self.tree.add_command(application_command)
@@ -122,6 +124,6 @@ def main() -> None:
     setup_logging()
     connection = db.initialise(str(config.DATABASE_PATH))
     try:
-        KrillBot().run(config.DISCORD_TOKEN, log_handler=None)
+        KrillBot(connection).run(config.DISCORD_TOKEN, log_handler=None)
     finally:
         connection.close()

@@ -11,4 +11,6 @@
   parser fuzz properties, and an explicit contract record.
 - Allowed new round emoji without rejecting a result while retaining a
   conservative subtotal and full-row validation signal.
+- Added server-scoped result storage, `/dive log`, `/dive me`, and the
+  author-only Log Krillion result message menu.
 
