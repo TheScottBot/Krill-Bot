@@ -150,3 +150,37 @@ def test_visibility_defaults_to_hidden_and_detects_viewers_result() -> None:
         )
     finally:
         connection.close()
+
+
+def test_visibility_setting_is_stored_per_server_and_is_idempotent() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        db.set_hide_scores_until_logged(connection, guild_id=10, hide_until_logged=False)
+        db.set_hide_scores_until_logged(connection, guild_id=10, hide_until_logged=False)
+
+        assert db.hide_scores_until_logged(connection, guild_id=10) is False
+        assert db.hide_scores_until_logged(connection, guild_id=11) is True
+        assert connection.execute("SELECT COUNT(*) FROM guild_settings").fetchone() == (1,)
+
+        db.set_hide_scores_until_logged(connection, guild_id=10, hide_until_logged=True)
+
+        assert db.hide_scores_until_logged(connection, guild_id=10) is True
+    finally:
+        connection.close()
+
+
+def test_daily_post_setting_is_absent_until_a_server_sets_one_up() -> None:
+    connection = db.initialise(":memory:")
+    try:
+        connection.execute(
+            "INSERT INTO daily_posts (guild_id, channel_id, clock, next_run) VALUES (?, ?, ?, ?)",
+            (11, 300, "09:00", "2026-10-19T08:00:00+00:00"),
+        )
+
+        assert db.daily_post_setting(connection, guild_id=10) is None
+        assert db.daily_post_setting(connection, guild_id=11) == db.DailyPostSetting(
+            channel_id=300,
+            clock="09:00",
+        )
+    finally:
+        connection.close()

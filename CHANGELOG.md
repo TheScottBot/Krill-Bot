@@ -23,3 +23,5 @@
   result history inside Discord's limits with a truncation note, made board
   averages exact for scores of any size, and widened the displayed-string check
   to composed text and command descriptions.
+- Added `/setup visibility` and `/setup show`, each requiring Manage Server and
+  replying privately.

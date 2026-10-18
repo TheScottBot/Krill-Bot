@@ -209,3 +209,37 @@ def user_daily_numbers(
         (guild_id, user_id),
     ).fetchall()
     return [row[0] for row in rows]
+
+
+@dataclass(frozen=True, slots=True)
+class DailyPostSetting:
+    """Where and when one server's daily post is sent."""
+
+    channel_id: int
+    clock: str
+
+
+def set_hide_scores_until_logged(
+    connection: sqlite3.Connection,
+    *,
+    guild_id: int,
+    hide_until_logged: bool,
+) -> None:
+    """Store one server's visibility choice; repeating it changes nothing further."""
+    with connection:
+        connection.execute(
+            """
+            INSERT INTO guild_settings (guild_id, hide_until_logged) VALUES (?, ?)
+            ON CONFLICT (guild_id) DO UPDATE SET hide_until_logged = excluded.hide_until_logged
+            """,
+            (guild_id, int(hide_until_logged)),
+        )
+
+
+def daily_post_setting(connection: sqlite3.Connection, *, guild_id: int) -> DailyPostSetting | None:
+    """Return one server's daily post, or nothing when it has not set one up."""
+    row = connection.execute(
+        "SELECT channel_id, clock FROM daily_posts WHERE guild_id = ?",
+        (guild_id,),
+    ).fetchone()
+    return None if row is None else DailyPostSetting(*row)

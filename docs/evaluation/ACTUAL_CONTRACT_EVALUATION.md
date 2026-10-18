@@ -491,6 +491,16 @@ project specification.
     score beyond float range, then all 81 tests passed. The wider check, run
     against the committed `commands.py`, reported the two composed board titles
     and the inline `/help` description.
+26. Read ProcBot's `/setup` group at `2c7ac2d` and discord.py 2.7.1's
+    `Group` signature and `has_permissions` check. Result: ProcBot sets
+    `guild_only` and a Manage Server `default_permissions`, and its own notes
+    say a server can change who sees the command. The check reads
+    `interaction.permissions` and raises `MissingPermissions`, a
+    `CheckFailure`, which the existing error handler already answers privately.
+27. Planted the first KE6 slice for `/setup visibility`, `/setup show`, the
+    Manage Server requirement, per-server idempotent visibility storage, and
+    the daily post read. Result: seven focused tests failed at missing
+    interfaces, then all 88 tests passed.
 
 ## KE2 progress report, 18 October 2026
 
@@ -574,6 +584,29 @@ The wider displayed-string check also caught the inline `/help` command
 description written in KE1. It was moved into `embeds.py` in the same slice,
 because the check could not pass on the tree otherwise. The all-time board
 title reads `All-time board` rather than the former `All board`.
+
+## KE6 progress report, 18 October 2026
+
+Implemented so far: `/setup visibility`, which stores whether `/dive today`
+hides scores until the viewer has logged, per server and idempotently, and
+`/setup show`, which privately reports that choice and the daily post. The
+group is server-only with Manage Server as its default permission, and every
+subcommand also checks Manage Server when used, because a server can widen who
+sees a command beyond its default.
+
+Not yet registered with the client. Adding the group to `APPLICATION_COMMANDS`
+changes the exact command list asserted by the KE1 test
+`test_client_uses_default_intents_without_privileged_message_content`. Datum
+0.4 forbids editing that assertion without raising it, so the change waits for
+the author.
+
+Update, 18 October 2026: the author approved adding `setup` to that assertion.
+The extended assertion failed because the group was unregistered, then all 88
+tests passed after `setup_group` was added to `APPLICATION_COMMANDS`.
+
+`/dive forget` and deletion on server removal and channel deletion wait for
+KD3. The daily post shown by `/setup show` is always `Not set up` until KE5
+writes one.
 
 ## KE1 progress report, 18 October 2026
 

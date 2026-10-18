@@ -77,12 +77,15 @@ class FakeInteraction:
         guild_id: int | None = None,
         user_id: int = 100,
         client: Any = None,
+        permissions: discord.Permissions | None = None,
     ) -> None:
         self.response = FakeInteractionResponse()
         self.followup = FakeInteractionFollowup()
         self.guild_id = guild_id
         self.user = type("FakeUser", (), {"id": user_id})()
         self.client = client
+        # discord.py's permission checks read the invoking member's resolved permissions.
+        self.permissions = discord.Permissions.none() if permissions is None else permissions
 
     @property
     def last_response(self) -> SentResponse:

@@ -38,6 +38,16 @@ PERIOD_BOARD_TITLES = {
     BoardPeriod.MONTH: "Month board",
     BoardPeriod.ALL: "All-time board",
 }
+SETUP_GROUP_DESCRIPTION = "Choose how Krill Bot behaves in this server"
+SETUP_VISIBILITY_DESCRIPTION = "Choose whether today's scores wait until a viewer has logged"
+SETUP_VISIBILITY_PARAMETER_DESCRIPTION = "hidden until each viewer logs, or shown to everyone"
+SETUP_SHOW_DESCRIPTION = "Show this server's Krill Bot settings"
+SETTINGS_TITLE = "Krill Bot settings"
+TODAY_SCORES_FIELD_NAME = "Today's scores"
+DAILY_POST_FIELD_NAME = "Daily post"
+SCORES_HIDDEN_SETTING = "Hidden until each viewer logs their own result"
+SCORES_SHOWN_SETTING = "Shown to everyone"
+DAILY_POST_NOT_SET_UP = "Not set up"
 TODAY_HIDDEN_MESSAGE = "Today's scores are hidden until you log your own result."
 NO_BOARD_RESULTS_MESSAGE = "No results have been logged in this server yet."
 REJECTION_MESSAGES = {
@@ -152,6 +162,34 @@ def period_board_pages(period: BoardPeriod, standings: list[BoardStanding]) -> l
         for position, standing in enumerate(standings, start=1)
     ]
     return _board_pages(PERIOD_BOARD_TITLES[period], lines)
+
+
+def visibility_changed_message(*, hide_until_logged: bool) -> str:
+    """Confirm a server's new visibility choice to the manager who made it."""
+    if hide_until_logged:
+        return "Scores on /dive today are now hidden until each viewer logs their own result."
+    return "Scores on /dive today are now shown to everyone in this server."
+
+
+def settings_embed(
+    *,
+    hide_until_logged: bool,
+    daily_post_channel_id: int | None,
+    daily_post_clock: str | None,
+) -> discord.Embed:
+    """Describe one server's settings; a channel mention never pings anyone."""
+    settings = discord.Embed(title=SETTINGS_TITLE)
+    settings.add_field(
+        name=TODAY_SCORES_FIELD_NAME,
+        value=SCORES_HIDDEN_SETTING if hide_until_logged else SCORES_SHOWN_SETTING,
+        inline=False,
+    )
+    if daily_post_channel_id is None or daily_post_clock is None:
+        daily_post_text = DAILY_POST_NOT_SET_UP
+    else:
+        daily_post_text = f"<#{daily_post_channel_id}> at {daily_post_clock}"
+    settings.add_field(name=DAILY_POST_FIELD_NAME, value=daily_post_text, inline=False)
+    return settings
 
 
 def streak_message(streak: Streak, *, own_streak: bool) -> str:

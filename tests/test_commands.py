@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import Any
 
 import discord
 
@@ -268,3 +269,116 @@ def test_streak_command_reports_current_and_longest_for_caller() -> None:
 
     assert interaction.last_response.content == "Your current streak is 2; your longest is 2."
     assert interaction.last_response.ephemeral is True
+
+
+def setup_commands() -> list[discord.app_commands.Command[Any, ..., Any]]:
+    return [
+        setup_command
+        for setup_command in commands.setup_group.walk_commands()
+        if isinstance(setup_command, discord.app_commands.Command)
+    ]
+
+
+def test_setup_is_server_only_and_defaults_to_manage_server() -> None:
+    assert commands.setup_group.guild_only is True
+    assert commands.setup_group.default_permissions is not None
+    assert commands.setup_group.default_permissions.manage_guild is True
+    assert sorted(setup_command.name for setup_command in setup_commands()) == [
+        "show",
+        "visibility",
+    ]
+
+
+def test_every_setup_command_refuses_a_member_without_manage_server() -> None:
+    refused_interaction = FakeInteraction(guild_id=10, permissions=discord.Permissions.none())
+    permitted_interaction = FakeInteraction(
+        guild_id=10,
+        permissions=discord.Permissions(manage_guild=True),
+    )
+
+    for setup_command in setup_commands():
+        assert setup_command.checks, setup_command.name
+        for permission_check in setup_command.checks:
+            try:
+                permission_check(refused_interaction)
+            except discord.app_commands.MissingPermissions:
+                pass
+            else:
+                raise AssertionError(f"/setup {setup_command.name} accepted a non-manager")
+            assert permission_check(permitted_interaction) is True
+
+
+def test_setup_visibility_shown_reveals_today_to_a_viewer_who_has_not_logged() -> None:
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    try:
+        complete_immediate_coroutine(
+            commands.log_result_command.callback(
+                FakeInteraction(guild_id=10, user_id=20, client=client),
+                DAILY_RESULT_TEXT,
+            )
+        )
+        manager_interaction = FakeInteraction(guild_id=10, user_id=30, client=client)
+        complete_immediate_coroutine(
+            commands.setup_visibility_command.callback(manager_interaction, "shown")
+        )
+        viewing_interaction = FakeInteraction(guild_id=10, user_id=21, client=client)
+        complete_immediate_coroutine(commands.today_command.callback(viewing_interaction))
+    finally:
+        connection.close()
+
+    assert manager_interaction.last_response.content == (
+        "Scores on /dive today are now shown to everyone in this server."
+    )
+    assert manager_interaction.last_response.ephemeral is True
+    assert manager_interaction.last_response.allowed_mentions is not None
+    assert viewing_interaction.last_response.embed is not None
+    assert viewing_interaction.last_response.embed.description == ("1. <@20>: 435 points, Deep cut")
+
+
+def test_setup_visibility_hidden_restores_the_default() -> None:
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    manager_interaction = FakeInteraction(guild_id=10, user_id=30, client=client)
+    try:
+        complete_immediate_coroutine(
+            commands.setup_visibility_command.callback(manager_interaction, "shown")
+        )
+        complete_immediate_coroutine(
+            commands.setup_visibility_command.callback(manager_interaction, "hidden")
+        )
+        hidden_setting = db.hide_scores_until_logged(connection, guild_id=10)
+    finally:
+        connection.close()
+
+    assert hidden_setting is True
+    assert manager_interaction.last_response.content == (
+        "Scores on /dive today are now hidden until each viewer logs their own result."
+    )
+
+
+def test_setup_show_reports_this_servers_settings_privately() -> None:
+    connection = db.initialise(":memory:")
+    client = SimpleNamespace(database_connection=connection)
+    manager_interaction = FakeInteraction(guild_id=10, user_id=30, client=client)
+    try:
+        complete_immediate_coroutine(
+            commands.setup_visibility_command.callback(
+                FakeInteraction(guild_id=11, user_id=30, client=client),
+                "shown",
+            )
+        )
+        complete_immediate_coroutine(commands.setup_show_command.callback(manager_interaction))
+    finally:
+        connection.close()
+
+    response = manager_interaction.last_response
+    assert response.ephemeral is True
+    assert response.allowed_mentions is not None
+    assert response.allowed_mentions.to_dict() == discord.AllowedMentions.none().to_dict()
+    assert response.embed is not None
+    assert response.embed.title == "Krill Bot settings"
+    assert [(field.name, field.value) for field in response.embed.fields] == [
+        ("Today's scores", "Hidden until each viewer logs their own result"),
+        ("Daily post", "Not set up"),
+    ]

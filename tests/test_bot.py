@@ -21,6 +21,7 @@ def test_client_uses_default_intents_without_privileged_message_content() -> Non
     assert client.intents.message_content is False
     assert [command.name for command in client.tree.get_commands()] == [
         "dive",
+        "setup",
         "help",
         "Log Krillion result",
     ]

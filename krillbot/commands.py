@@ -220,6 +220,66 @@ async def streak_command(
     )
 
 
+# default_permissions only sets who sees /setup at first, and a server may widen it,
+# so every subcommand also checks Manage Server when it is used.
+setup_group = app_commands.Group(
+    name="setup",
+    description=embeds.SETUP_GROUP_DESCRIPTION,
+    guild_only=True,
+    default_permissions=discord.Permissions(manage_guild=True),
+)
+
+
+@setup_group.command(name="visibility", description=embeds.SETUP_VISIBILITY_DESCRIPTION)
+@app_commands.describe(scores=embeds.SETUP_VISIBILITY_PARAMETER_DESCRIPTION)
+@app_commands.checks.has_permissions(manage_guild=True)
+async def setup_visibility_command(
+    interaction: discord.Interaction,
+    scores: Literal["hidden", "shown"],
+) -> None:
+    """Choose whether /dive today waits until the viewer has logged."""
+    guild_id = interaction.guild_id
+    if guild_id is None:
+        await interaction.response.send_message(
+            embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    hide_until_logged = scores == "hidden"
+    db.set_hide_scores_until_logged(
+        _database_connection(interaction),
+        guild_id=guild_id,
+        hide_until_logged=hide_until_logged,
+    )
+    await interaction.response.send_message(
+        embeds.visibility_changed_message(hide_until_logged=hide_until_logged),
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
+@setup_group.command(name="show", description=embeds.SETUP_SHOW_DESCRIPTION)
+@app_commands.checks.has_permissions(manage_guild=True)
+async def setup_show_command(interaction: discord.Interaction) -> None:
+    """Show this server's settings to the manager privately."""
+    guild_id = interaction.guild_id
+    if guild_id is None:
+        await interaction.response.send_message(
+            embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    connection = _database_connection(interaction)
+    daily_post = db.daily_post_setting(connection, guild_id=guild_id)
+    await interaction.response.send_message(
+        embed=embeds.settings_embed(
+            hide_until_logged=db.hide_scores_until_logged(connection, guild_id=guild_id),
+            daily_post_channel_id=None if daily_post is None else daily_post.channel_id,
+            daily_post_clock=None if daily_post is None else daily_post.clock,
+        ),
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
 @app_commands.context_menu(name=embeds.LOG_MESSAGE_COMMAND_NAME)
 async def log_message_command(
     interaction: discord.Interaction,
@@ -242,4 +302,4 @@ async def help_command(interaction: discord.Interaction) -> None:
     await interaction.response.send_message(embed=embeds.help_embed(), allowed_mentions=NO_MENTIONS)
 
 
-APPLICATION_COMMANDS: tuple[Any, ...] = (dive_group, help_command, log_message_command)
+APPLICATION_COMMANDS: tuple[Any, ...] = (dive_group, setup_group, help_command, log_message_command)
