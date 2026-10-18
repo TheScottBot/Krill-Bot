@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 import sqlite3
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 import discord
 from discord import app_commands
 
 from krillbot import db, embeds
+from krillbot.boards import BoardPeriod, calculate_streak, compile_board
 from krillbot.result_grammar import ParsedResult, ParseRejection, parse_daily_result
 
 NO_MENTIONS = discord.AllowedMentions.none()
@@ -96,6 +97,124 @@ async def me_command(interaction: discord.Interaction) -> None:
     )
     await interaction.response.send_message(
         response_text,
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+
+
+async def _send_board_pages(
+    interaction: discord.Interaction,
+    pages: list[discord.Embed],
+) -> None:
+    if not pages:
+        await interaction.response.send_message(
+            embeds.NO_BOARD_RESULTS_MESSAGE,
+            ephemeral=True,
+            allowed_mentions=NO_MENTIONS,
+        )
+        return
+    await interaction.response.send_message(
+        embed=pages[0],
+        ephemeral=True,
+        allowed_mentions=NO_MENTIONS,
+    )
+    for page in pages[1:]:
+        await interaction.followup.send(
+            embed=page,
+            ephemeral=True,
+            allowed_mentions=NO_MENTIONS,
+        )
+
+
+@dive_group.command(name="today", description=embeds.TODAY_COMMAND_DESCRIPTION)
+async def today_command(interaction: discord.Interaction) -> None:
+    """Show the latest logged daily board subject to server visibility."""
+    guild_id = interaction.guild_id
+    if guild_id is None:
+        await interaction.response.send_message(
+            embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    connection = _database_connection(interaction)
+    current_daily_number = db.latest_daily_number(connection, guild_id=guild_id)
+    if current_daily_number is None:
+        await _send_board_pages(interaction, [])
+        return
+    if db.hide_scores_until_logged(connection, guild_id=guild_id) and not db.user_has_daily_result(
+        connection,
+        guild_id=guild_id,
+        user_id=interaction.user.id,
+        daily_number=current_daily_number,
+    ):
+        await interaction.response.send_message(
+            embeds.TODAY_HIDDEN_MESSAGE,
+            ephemeral=True,
+            allowed_mentions=NO_MENTIONS,
+        )
+        return
+    entries = [
+        entry
+        for entry in db.server_board_entries(connection, guild_id=guild_id)
+        if entry.daily_number == current_daily_number
+    ]
+    standings = compile_board(entries, BoardPeriod.ALL, current_daily_number=current_daily_number)
+    await _send_board_pages(
+        interaction,
+        embeds.board_pages(f"Daily #{current_daily_number}", standings),
+    )
+
+
+@dive_group.command(name="board", description=embeds.BOARD_COMMAND_DESCRIPTION)
+@app_commands.describe(period=embeds.BOARD_PERIOD_DESCRIPTION)
+async def board_command(
+    interaction: discord.Interaction,
+    period: Literal["week", "month", "all"],
+) -> None:
+    """Show a rolling aggregate board for the current server."""
+    guild_id = interaction.guild_id
+    if guild_id is None:
+        await interaction.response.send_message(
+            embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    connection = _database_connection(interaction)
+    current_daily_number = db.latest_daily_number(connection, guild_id=guild_id)
+    if current_daily_number is None:
+        await _send_board_pages(interaction, [])
+        return
+    selected_period = BoardPeriod(period)
+    standings = compile_board(
+        db.server_board_entries(connection, guild_id=guild_id),
+        selected_period,
+        current_daily_number=current_daily_number,
+    )
+    await _send_board_pages(
+        interaction,
+        embeds.board_pages(f"{selected_period.value.title()} board", standings),
+    )
+
+
+@dive_group.command(name="streak", description=embeds.STREAK_COMMAND_DESCRIPTION)
+async def streak_command(
+    interaction: discord.Interaction,
+    player: discord.Member | None = None,
+) -> None:
+    """Show a player's server-scoped current and longest streaks."""
+    guild_id = interaction.guild_id
+    if guild_id is None:
+        await interaction.response.send_message(
+            embeds.SERVER_ONLY_MESSAGE, ephemeral=True, allowed_mentions=NO_MENTIONS
+        )
+        return
+    connection = _database_connection(interaction)
+    current_daily_number = db.latest_daily_number(connection, guild_id=guild_id)
+    target_user_id = interaction.user.id if player is None else player.id
+    streak = calculate_streak(
+        db.user_daily_numbers(connection, guild_id=guild_id, user_id=target_user_id),
+        current_daily_number=current_daily_number or 0,
+    )
+    await interaction.response.send_message(
+        embeds.streak_message(streak, own_streak=target_user_id == interaction.user.id),
         ephemeral=True,
         allowed_mentions=NO_MENTIONS,
     )
