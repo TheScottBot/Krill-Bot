@@ -64,7 +64,34 @@ asserted; the tests assert that the buttons are removed from the message.
 
 ## Author gates
 
-No author gate has been cleared. The coding agent does not start Krill Bot with
-a real Discord token. Live command registration, replies, daily posting,
-forgetting, and removal behaviour require the author checks named by KE8.
+The coding agent does not start Krill Bot with a real Discord token; every
+check below was run by the author against the development bot.
+
+### KE8, 18 October 2026
+
+The agent listed five checks for the development bot in a test server:
+
+1. logging with `/dive log` and with the Log Krillion result menu, and the
+   menu refusing someone else's message
+2. `/dive today` hiding scores until the viewer has logged, then showing them,
+   with `/dive board period:week` and `/dive streak`
+3. a daily post set a few minutes ahead with `/setup daily here`, showing
+   yesterday's board and pinging nobody
+4. `/dive forget scope:here`, with Delete working for the caller and the
+   buttons refusing a second account
+5. removing the bot from the test server and its rows leaving the development
+   database
+
+The author reported, in their own words: "Yup each of those are good and work.
+Saves remembers, deletes all good". That statement is the only evidence for
+these gates. It did not record the commit, the test server, the times
+observed, or each check's outcome separately. When it was given, the
+repository was at commit `0de6887` with no code changes outstanding, which
+suggests but does not prove that the checks ran against that commit.
+
+On 18 October 2026, after KE7, the author reported in their own words: "All
+green on tests". The report did not record the machine, Python version or which
+of the suites above were run, so it is recorded as the author's statement that
+the automated tests passed, not as a reproduction of every suite on a clean
+machine.
 

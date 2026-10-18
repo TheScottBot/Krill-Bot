@@ -42,3 +42,5 @@
 - Added the GitHub Pages site: a home page, a stylesheet, and privacy and terms
   pages generated from `PRIVACY.md` and the new `TERMS.md` by `site_builder.py`,
   with a continuous integration check that the pages match their sources.
+- Recorded the author's KE8 checks against the development bot: logging,
+  boards, the daily post, forgetting and removal.

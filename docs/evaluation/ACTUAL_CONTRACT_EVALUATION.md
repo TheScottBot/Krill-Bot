@@ -684,6 +684,15 @@ description written in KE1. It was moved into `embeds.py` in the same slice,
 because the check could not pass on the tree otherwise. The all-time board
 title reads `All-time board` rather than the former `All board`.
 
+## KE8 author gates, 18 October 2026
+
+The author ran the development bot in a test server and reported the five
+checks the agent listed as passing, in the words recorded in `TESTING.md`.
+The agent did not observe them. The repository was at `0de6887` with no code
+changes outstanding when the report was given. KE8's done-when criterion, the
+author recording each check in `TESTING.md`, is met by that recorded
+statement; it does not cover live behaviour beyond the five checks named.
+
 ## KE7 progress report, 18 October 2026
 
 Implemented so far: `PRIVACY.md`, `SECURITY.md` and `docs/DISCORD_LISTING.md`,
