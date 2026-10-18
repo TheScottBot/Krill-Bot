@@ -571,6 +571,35 @@ in `BOT_TIMEZONE`.
     the future the constructor skips; they were removed before ever passing,
     leaving the observable removal of the buttons asserted. All 165 tests then
     passed under plain Pytest and development mode.
+39. Computed the requested permission integer with discord.py 2.7.1 and read
+    ProcBot's `docs/DISCORD_LISTING.md` at `2c7ac2d`. Result: Send Messages,
+    Embed Links and Send Messages in Threads give 274877925376, matching the
+    earlier record.
+40. Planted the KE7 document tests: every stored table and column named in
+    `PRIVACY.md`, its section 6.1 contents, the two trust boundaries and
+    accepted risks in `SECURITY.md`, and the permission integer in the
+    listing. Result: four tests failed for missing files, then passed once the
+    documents were written. A copy of `PRIVACY.md` without `reset_clock`
+    failed the column test naming `daily_posts.reset_clock`, and a listing
+    with the wrong integer failed its test.
+41. The author decided the private bot needs no application ID and no invite
+    link. The draft invite section was removed and its new, never-committed
+    test now checks the permission integer instead of the invite query.
+42. Read ProcBot's `docs/` site at `2c7ac2d`: `.nojekyll`, `index.html`,
+    `style.css`, and hand-written `privacy.html` and `terms.html`. The author
+    asked for the site with terms and privacy pages although Krill Bot is
+    private.
+43. Planted `site_builder.py`, which generates `docs/privacy.html` and
+    `docs/terms.html` from `PRIVACY.md` and `TERMS.md`, refuses Markdown it
+    does not understand, and has a `--check` mode for continuous integration.
+    Result: the module failed at collection, then the converter's tests
+    passed while four tests failed for the missing pages, terms, CI step and
+    `.nojekyll`; all passed once those were added. Appending a planted
+    sentence to `PRIVACY.md` made `--check` fail naming `docs/privacy.html`.
+    The privacy page rendered at 375 pixels wide with no sideways scrolling.
+    The typography scan and Ruff each caught one defect in the first draft,
+    both fixed before the suite passed with 182 tests under plain Pytest and
+    development mode.
 
 ## KE2 progress report, 18 October 2026
 
@@ -654,6 +683,30 @@ The wider displayed-string check also caught the inline `/help` command
 description written in KE1. It was moved into `embeds.py` in the same slice,
 because the check could not pass on the tree otherwise. The all-time board
 title reads `All-time board` rather than the former `All board`.
+
+## KE7 progress report, 18 October 2026
+
+Implemented so far: `PRIVACY.md`, `SECURITY.md` and `docs/DISCORD_LISTING.md`,
+with tests that keep the privacy record naming every stored column and the
+listing naming the exact permission integer, and a README describing the
+current commands. The prose scan already covers `docs/`.
+
+The privacy wording and the accepted risks were drafted by the coding agent
+from the code and specification. Datum Part 2 asks for the accepted risks in
+the author's own words, so both are the author's to rewrite before KE7 is
+complete. KD3 makes Krill Bot private, so no invite link, App Directory copy
+or application ID is recorded. Whether the GitHub Pages site with terms and
+privacy pages, and the icon, banner and presence assets, are still wanted for
+a private bot is open.
+
+Update, 18 October 2026: the author asked for the site. `docs/` now holds
+`.nojekyll`, a hand-written `index.html`, `style.css`, and `privacy.html` and
+`terms.html` generated from `PRIVACY.md` and `TERMS.md`, with a CI check that
+they match. `TERMS.md` is also agent-drafted and the author's to reword.
+Serving the site needs GitHub Pages enabled for `docs/` on the main branch,
+which is the author's repository setting. No icon, banner or presence image
+exists yet: artwork is the author's to supply, and the pages use no images in
+the meantime.
 
 ## KE5 progress report, 18 October 2026
 

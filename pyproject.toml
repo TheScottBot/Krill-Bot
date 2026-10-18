@@ -42,5 +42,5 @@ select = ["E", "F", "W", "I", "UP", "B", "N"]
 [tool.mypy]
 python_version = "3.14"
 strict = true
-files = ["krillbot", "repository_checks.py"]
+files = ["krillbot", "repository_checks.py", "site_builder.py"]
 

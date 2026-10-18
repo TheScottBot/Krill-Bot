@@ -5,15 +5,18 @@ repository root, then use these suites:
 
 ```powershell
 .venv\Scripts\python.exe repository_checks.py
+.venv\Scripts\python.exe site_builder.py --check
 .venv\Scripts\ruff.exe check .
 .venv\Scripts\ruff.exe format --check .
-.venv\Scripts\mypy.exe krillbot repository_checks.py
+.venv\Scripts\mypy.exe krillbot repository_checks.py site_builder.py
 .venv\Scripts\python.exe -m pytest
 .venv\Scripts\python.exe -X dev -m pytest -W error
 ```
 
 `repository_checks.py` enforces the typography rules and ownership of displayed
-strings. `tests/test_repository_checks.py` enforces the portable-module import
+strings. `site_builder.py --check` fails when `docs/privacy.html` or
+`docs/terms.html` differs from `PRIVACY.md` or `TERMS.md`; after editing either
+record, run `.venv\Scripts\python.exe site_builder.py` to rebuild the pages. `tests/test_repository_checks.py` enforces the portable-module import
 boundary, package metadata, environment example, continuous integration gates,
 and service hardening.
 

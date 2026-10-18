@@ -36,3 +36,9 @@
   button only the caller can press; deletion of a server's rows when the bot
   is removed; and stopping a daily post whose channel or thread is deleted,
   each idempotent and logged with its origin.
+- Added `PRIVACY.md`, `SECURITY.md` and the private permission record in
+  `docs/DISCORD_LISTING.md`, with tests that keep the privacy record in step
+  with every stored column, and described the current commands in the README.
+- Added the GitHub Pages site: a home page, a stylesheet, and privacy and terms
+  pages generated from `PRIVACY.md` and the new `TERMS.md` by `site_builder.py`,
+  with a continuous integration check that the pages match their sources.
