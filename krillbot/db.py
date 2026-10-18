@@ -6,6 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 
+from krillbot.boards import BoardEntry
 from krillbot.result_grammar import ParsedResult
 
 SCHEMA_VERSION = 1
@@ -136,3 +137,75 @@ def user_results(
         (guild_id, user_id),
     ).fetchall()
     return [StoredDailyResult(*row) for row in rows]
+
+
+def server_board_entries(
+    connection: sqlite3.Connection,
+    *,
+    guild_id: int,
+) -> list[BoardEntry]:
+    """Return the score fields for one server only."""
+    rows = connection.execute(
+        """
+        SELECT user_id, daily_number, score
+        FROM daily_results
+        WHERE guild_id = ?
+        """,
+        (guild_id,),
+    ).fetchall()
+    return [BoardEntry(*row) for row in rows]
+
+
+def latest_daily_number(connection: sqlite3.Connection, *, guild_id: int) -> int | None:
+    """Return the highest daily number logged in one server."""
+    row = connection.execute(
+        "SELECT MAX(daily_number) FROM daily_results WHERE guild_id = ?",
+        (guild_id,),
+    ).fetchone()
+    daily_number = row[0]
+    return None if daily_number is None else int(daily_number)
+
+
+def hide_scores_until_logged(connection: sqlite3.Connection, *, guild_id: int) -> bool:
+    """Return the server setting, defaulting to hidden scores."""
+    row = connection.execute(
+        "SELECT hide_until_logged FROM guild_settings WHERE guild_id = ?",
+        (guild_id,),
+    ).fetchone()
+    return True if row is None else bool(row[0])
+
+
+def user_has_daily_result(
+    connection: sqlite3.Connection,
+    *,
+    guild_id: int,
+    user_id: int,
+    daily_number: int,
+) -> bool:
+    """Return whether one user logged one daily result in one server."""
+    row = connection.execute(
+        """
+        SELECT 1 FROM daily_results
+        WHERE guild_id = ? AND user_id = ? AND daily_number = ?
+        """,
+        (guild_id, user_id, daily_number),
+    ).fetchone()
+    return row is not None
+
+
+def user_daily_numbers(
+    connection: sqlite3.Connection,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> list[int]:
+    """Return one user's daily numbers from one server."""
+    rows = connection.execute(
+        """
+        SELECT daily_number FROM daily_results
+        WHERE guild_id = ? AND user_id = ?
+        ORDER BY daily_number
+        """,
+        (guild_id, user_id),
+    ).fetchall()
+    return [row[0] for row in rows]

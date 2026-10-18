@@ -85,3 +85,68 @@ def test_user_results_are_scoped_to_server_and_ordered_newest_first() -> None:
         (95, 435),
         (94, 235),
     ]
+
+
+def test_board_reads_and_latest_number_are_scoped_to_server() -> None:
+    connection = db.initialise(":memory:")
+    logged_at = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+    try:
+        db.store_daily_result(
+            connection,
+            10,
+            20,
+            ParsedResult(95, 435, "🐟🏮🏮🦑🐟🏮🦑", 435, True, True),
+            logged_at,
+        )
+        db.store_daily_result(
+            connection,
+            11,
+            21,
+            ParsedResult(100, 700, "🏮🏮🏮🏮🏮🏮🏮", 595, True, False),
+            logged_at,
+        )
+
+        entries = db.server_board_entries(connection, guild_id=10)
+        latest_number = db.latest_daily_number(connection, guild_id=10)
+    finally:
+        connection.close()
+
+    assert [(entry.user_id, entry.daily_number, entry.score) for entry in entries] == [
+        (20, 95, 435)
+    ]
+    assert latest_number == 95
+
+
+def test_visibility_defaults_to_hidden_and_detects_viewers_result() -> None:
+    connection = db.initialise(":memory:")
+    logged_at = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+    try:
+        db.store_daily_result(
+            connection,
+            10,
+            20,
+            ParsedResult(95, 435, "🐟🏮🏮🦑🐟🏮🦑", 435, True, True),
+            logged_at,
+        )
+
+        assert db.hide_scores_until_logged(connection, guild_id=10) is True
+        assert (
+            db.user_has_daily_result(
+                connection,
+                guild_id=10,
+                user_id=20,
+                daily_number=95,
+            )
+            is True
+        )
+        assert (
+            db.user_has_daily_result(
+                connection,
+                guild_id=10,
+                user_id=21,
+                daily_number=95,
+            )
+            is False
+        )
+    finally:
+        connection.close()
