@@ -1,0 +1,21 @@
+# systemd service for Krill Bot, checked out at /opt/krillbot.
+[Unit]
+Description=Krill Bot Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=krillbot
+WorkingDirectory=/opt/krillbot
+ExecStart=/opt/krillbot/.venv/bin/python /opt/krillbot/bot.py
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/krillbot
+
+[Install]
+WantedBy=multi-user.target
+

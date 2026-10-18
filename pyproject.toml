@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=82"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "krillbot"
+version = "0.1.0"
+description = "An unofficial Discord scoreboard companion for Krillion"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+dependencies = [
+    "discord.py>=2.7.1",
+    "python-dotenv>=1.2.4",
+    "tzdata>=2026.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+    "hypothesis>=6.167.1",
+    "ruff>=0.16.8",
+    "mypy>=2.4.0",
+]
+
+[project.scripts]
+krillbot = "krillbot.bot:main"
+
+[tool.setuptools.packages.find]
+include = ["krillbot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "N"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+files = ["krillbot", "repository_checks.py"]
+

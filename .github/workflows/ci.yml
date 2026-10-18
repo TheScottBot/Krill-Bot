@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install project and development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Repository policy checks
+        run: python repository_checks.py
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format
+        run: ruff format --check .
+      - name: MyPy strict analysis
+        run: mypy krillbot repository_checks.py
+      - name: Pytest
+        run: pytest
+
