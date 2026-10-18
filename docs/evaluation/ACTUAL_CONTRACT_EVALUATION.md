@@ -472,6 +472,10 @@ project specification.
     copy before the author-supplied private guidance was centralised. The
     authorised specification departure is recorded in
     `IMPLEMENTATION_DEVIATIONS.md`.
+22. The author selected hidden scores by default, total-score board ranking with
+    dives, average, and best, and rolling 7-day and 30-day periods based on daily
+    numbers. Pure KE4 tests failed at collection because the board model did not
+    exist, then eight focused tests passed after implementation.
 
 ## KE2 progress report, 18 October 2026
 
@@ -517,6 +521,19 @@ counters and the format-change warning are intentionally omitted. Each
 unrecognised paste receives private guidance, while only its server and stable
 reason enter the diagnostic log.
 
+## KE4 progress report, 18 October 2026
+
+Implemented so far: pure board entries and standings, rolling week and month
+cutoffs, all-time aggregation, total-score ranking, dives, average, best, and
+current and longest streak calculations. Board ties are resolved by best score,
+then dives, then Discord user ID so results remain deterministic. Duplicate
+daily numbers do not inflate streaks, and a gap breaks them.
+
+Discord commands, hidden-today behaviour, server-scoped database reads, and
+embed paging remain in the next KE4 slice. Until KU4 is settled, those views
+will use the highest daily number logged in the server as their rolling anchor,
+which is recorded rather than presented as Krillion's actual reset date.
+
 ## KE1 progress report, 18 October 2026
 
 Implemented so far: package and stable launchers, validated environment
@@ -545,7 +562,7 @@ Current automated results on Windows with Python 3.14.7:
 - Ruff lint: passed with no findings
 - Ruff format check: 28 files formatted
 - MyPy strict analysis: 10 source files passed with no issues
-- Pytest: 57 passed in 3.81 seconds
+- Pytest: 65 passed in 3.10 seconds
 - warnings: none reported
 - skipped tests: none
 

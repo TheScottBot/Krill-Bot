@@ -15,4 +15,6 @@
   author-only Log Krillion result message menu.
 - Replaced the proposed aggregate format-change warning with private guidance
   on each unrecognised paste, as selected by the author.
+- Added pure rolling board aggregation and current and longest streak
+  calculations.
 
