@@ -284,7 +284,10 @@ def test_setup_is_server_only_and_defaults_to_manage_server() -> None:
     assert commands.setup_group.default_permissions is not None
     assert commands.setup_group.default_permissions.manage_guild is True
     assert sorted(setup_command.name for setup_command in setup_commands()) == [
+        "here",
         "show",
+        "show",
+        "stop",
         "visibility",
     ]
 

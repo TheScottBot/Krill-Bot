@@ -292,12 +292,12 @@ def _daily_post_summary(connection: sqlite3.Connection, guild_id: int) -> str | 
     )
 
 
-# Built apart from /setup until it is attached there; see the KE5 progress report.
+# A subgroup takes guild_only and default_permissions from /setup; Discord sets
+# them on top-level commands only.
 daily_setup_group = app_commands.Group(
     name="daily",
     description=embeds.DAILY_SETUP_GROUP_DESCRIPTION,
-    guild_only=True,
-    default_permissions=discord.Permissions(manage_guild=True),
+    parent=setup_group,
 )
 
 

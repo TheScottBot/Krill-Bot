@@ -664,6 +664,15 @@ Not yet attached under `/setup`. Nesting the `daily` group there changes the
 exact subcommand list asserted by the KE6 test
 `test_setup_is_server_only_and_defaults_to_manage_server`. Datum 0.4 forbids
 editing that assertion without raising it, so the change waits for the author.
+
+Update, 18 October 2026: the author approved extending that assertion with the
+daily subcommands. It failed while `daily` stood apart, then all 146 tests
+passed, under plain Pytest and development mode, once the group was attached
+with `/setup` as its parent. The commands are `/setup daily here`,
+`/setup daily stop` and `/setup daily show`; the subgroup inherits `/setup`'s
+server-only and Manage Server defaults, and each subcommand keeps its own
+Manage Server check.
+
 The daily post's real sending, timing and thread behaviour are author gates
 under KE8. The `from-the-future` refusal still needs KU4's date mapping.
 
